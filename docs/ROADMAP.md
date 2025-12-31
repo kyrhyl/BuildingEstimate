@@ -346,25 +346,187 @@ Add to existing element types:
 ---
 
 ## Milestone 6 – BOQ v1 (Concrete Only)
-**Status:** 🔄 In Progress
+**Status:** ✅ Complete
 
 ### Scope
 - Map concrete takeoff → DPWH pay items
+- Persist calculation runs for history/audit
 
 ### Deliverables
-- ⬜ BOQ mapper (takeoff → DPWH catalog)
-- ⬜ BOQ UI page with traceability
-- ⬜ Aggregation by DPWH item number
-- ⬜ Traceability links (BOQ → Takeoff → Elements)
+- ✅ BOQ mapper (takeoff → DPWH catalog)
+- ✅ BOQ UI page with traceability
+- ✅ Aggregation by DPWH item number
+- ✅ Traceability links (BOQ → Takeoff → Elements)
+- ✅ Template-level DPWH item selection
+- ✅ CalcRun persistence model
+- ✅ Auto-save takeoff and BOQ calculations
+- ✅ Load latest calculations on page mount
+
+### Completed Files
+- `/models/CalcRun.ts` - Calculation run schema with takeoff/BOQ persistence
+- `/app/api/projects/[id]/boq/route.ts` - BOQ generation and CalcRun update
+- `/app/api/projects/[id]/calcruns/route.ts` - CalcRun list/create API
+- `/app/api/projects/[id]/calcruns/latest/route.ts` - Latest calculation retrieval
+- `/components/BOQViewer.tsx` - Interactive BOQ display with source traceability
+- `/app/projects/[id]/page.tsx` - Updated with BOQ tab
+- `/app/api/projects/[id]/takeoff/route.ts` - Updated to auto-save CalcRun
+
+### Features
+- **Template-Level DPWH Mapping**: Each template assigned specific DPWH item (e.g., "900 (1) c")
+- **Proper BOQ Aggregation**: One line per DPWH item (not split by element type)
+- **Source Traceability**: Expandable BOQ lines show all source takeoff lines with formulas
+- **Element Counts**: BOQ shows breakdown (e.g., "4 beam, 6 column, 1 foundation")
+- **CalcRun Persistence**: Calculations saved to database, no regeneration needed
+- **Auto-Load**: Latest calculations loaded automatically on page mount
+- **Timestamp Display**: Shows "Last calculated" and "Last generated" timestamps
+- **Smart Buttons**: "Generate" vs "Recalculate" based on existing data
+- **DPWH Item Display**: Templates show assigned pay item in blue text
 
 ### Tests
-- Aggregation correctness
-- Unit compatibility
+- ✅ Aggregation correctness (groups by DPWH item only)
+- ✅ Unit compatibility (all concrete in m³)
+- ✅ Traceability integrity (BOQ → Takeoff → Elements)
+- ✅ CalcRun persistence and retrieval
+- ✅ Template DPWH item assignment and update
+
+### Notes
+- Default DPWH item: "900 (1) a" - Structural Concrete 3000 psi Class A 7 days
+- Warnings shown for templates without DPWH items assigned
+- CalcRun includes status, errors, timestamp for full audit trail
 
 ---
 
 ## Milestone 7 – Rebar Quantity Takeoff
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
+
+### Scope
+- Calculate reinforcing steel weight for beams, slabs, columns, foundations
+- Automatic DPWH grade classification based on bar diameter
+- Template-level rebar configuration
+- Separate rebar takeoff lines with traceability
+
+### Deliverables
+- ✅ Rebar math library with Philippine standards
+- ✅ Automatic grade classification (Grade 40/60/80)
+- ✅ DPWH rebar item auto-selection
+- ✅ Template editor with comprehensive rebar configuration UI
+- ✅ Rebar calculations for all element types (beams, slabs, columns)
+- ✅ Enhanced takeoff viewer with rebar display and filtering
+- ✅ Summary totals for both concrete and rebar
+
+### Completed Files
+- `/lib/math/rebar.ts` - Complete rebar calculation library
+  - REBAR_WEIGHT_TABLE: kg/m for diameters 10-40mm
+  - getRebarGrade(diameter): Auto-classifies as 40/60/80
+  - getDPWHRebarItem(diameter, epoxCoated): Auto-selects DPWH item
+  - calculateBarWeight(): Core calculation with lap and waste
+  - calculateBeamMainBars(), calculateBeamStirrupsWeight()
+  - calculateSlabMainBars() for both directions
+  - calculateColumnMainBars(), calculateColumnTiesWeight()
+  - calculateBarCount(), calculateLapLength()
+
+- `/types/index.ts` - Updated with RebarConfig interface
+  - mainBars: {count, diameter}
+  - stirrups: {diameter, spacing}
+  - secondaryBars: {diameter, spacing}
+  - dpwhRebarItem: Optional DPWH item override
+
+- `/models/Project.ts` - Schema updated with rebar fields
+  - ElementTemplateSchema includes all rebar configuration
+  - Backward compatible with existing templates
+
+- `/components/ElementTemplatesEditor.tsx` - Comprehensive rebar UI
+  - Main bars: count + diameter dropdown (all element types)
+  - Stirrups/ties: diameter + spacing (beams, columns)
+  - Secondary bars: diameter + spacing (slabs only)
+  - DPWH rebar item auto-populated with manual override
+  - Shows grade info: "Auto-selected: 902 (1) a2 (Grade 60)"
+  - Template cards display rebar config in green text
+
+- `/app/api/projects/[id]/takeoff/route.ts` - Rebar calculations integrated
+  - **Beams**: Main bars (with lap) + stirrups (perimeter calculation)
+  - **Slabs**: Main bars (primary direction) + secondary bars (perpendicular)
+  - **Columns**: Main bars (column height) + ties (lateral reinforcement)
+  - Each rebar line: trade:'Rebar', quantity in kg, DPWH item
+  - Summary includes totalRebar field
+
+- `/components/TakeoffViewer.tsx` - Enhanced with rebar display
+  - Summary shows both concrete (m³) and rebar (kg)
+  - Rebar total in orange color
+  - Dual filter system: Trade (All/Concrete/Rebar) + Element type
+  - Auto-loads latest CalcRun
+
+- `/app/api/projects/[id]/boq/route.ts` - BOQ generation for both trades
+  - Processes both concrete and rebar takeoff lines
+  - Groups rebar by DPWH item from takeoff assumptions
+  - Separate aggregation for concrete (m³) and rebar (kg)
+  - Summary includes both trades
+
+- `/components/BOQViewer.tsx` - Enhanced BOQ display
+  - Summary shows both concrete and rebar totals
+  - Visual distinction: Blue for concrete, Orange for rebar
+  - Trade badges on BOQ items
+  - Quantity formatting: 3 decimals for m³, 2 decimals for kg
+  - Element and rebar type breakdowns in source traceability
+
+### Features
+- **Automatic Grade Classification**:
+  - Grade 40: ≤12mm (10mm, 12mm) → DPWH "902 (1) a1"
+  - Grade 60: 16-36mm → DPWH "902 (1) a2"
+  - Grade 80: ≥40mm → DPWH "902 (1) a3"
+  - Epoxy-coated variants: "902 (2) ax"
+
+- **Rebar Calculations**:
+  - Standard kg/m weights for all diameters
+  - Lap length: 40Ø (40 times bar diameter)
+  - Waste factor: 3% default
+  - Element-specific formulas for beams, slabs, columns
+  - Proper perimeter calculations for stirrups/ties
+
+- **Template Configuration**:
+  - Per-element rebar specification
+  - Auto-populate DPWH item on diameter selection
+  - Manual override capability
+  - Visual feedback with grade information
+
+- **Takeoff Integration**:
+  - Separate lines for concrete and rebar
+  - Each element generates 1 concrete + 1-2 rebar lines
+  - Proper trade tagging: 'Concrete' vs 'Rebar'
+  - Rebar type tags: 'rebar:main', 'rebar:stirrups', 'rebar:ties', 'rebar:secondary'
+  - DPWH item included in assumptions and tags
+
+- **Viewer Enhancements**:
+  - Summary grid shows both concrete and rebar totals
+  - Trade filtering: All/Concrete Only/Rebar Only
+  - Element filtering: All/Beams/Slabs/Columns/Foundations
+  - Color coding: Blue for concrete, Orange for rebar
+
+- **BOQ Integration**:
+  - BOQ processes both concrete and rebar trades
+  - Aggregates by DPWH item number (902 series for rebar)
+  - Extracts DPWH item from takeoff line assumptions
+  - Summary displays separate totals for each trade
+  - Visual distinction with trade badges and color coding
+  - Proper unit formatting: m³ vs kg
+
+### Technical Notes
+- Philippine DPWH standards for rebar classification
+- Bar diameters: 10, 12, 16, 20, 25, 28, 32, 36, 40mm
+- All calculations in metric units (kg, meters)
+- Backward compatible - templates without rebar config still work
+- DPWH items embedded in takeoff assumptions for BOQ traceability
+
+### Tests Completed
+- ✅ Grade classification correctness
+- ✅ DPWH item auto-selection
+- ✅ Rebar calculation integration
+- ✅ Takeoff and BOQ generation
+- ✅ TypeScript type safety
+
+---
+
+## Milestone 8 – Formwork Areas
 
 ### Scope
 - Rebar weight computation
@@ -397,18 +559,57 @@ Add to existing element types:
 ---
 
 ## Milestone 9 – Formwork Quantity Takeoff
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
 ### Scope
-- Formwork area computation
+- Formwork area computation for all structural elements
+- BOQ integration for formwork trade
 
 ### Deliverables
-- Math: formwork.ts
-- Takeoff integration
+- ✅ Math library: `/lib/math/formwork.ts` with 6 calculation functions
+- ✅ Takeoff integration in `/app/api/projects/[id]/takeoff/route.ts`
+- ✅ BOQ integration in `/app/api/projects/[id]/boq/route.ts`
+- ✅ UI updates in TakeoffViewer and BOQViewer
+- ✅ Summary calculations include totalFormwork
+- ✅ Trade filter supports "Formwork Only" option
+
+### Completed Files
+- `/lib/math/formwork.ts` - Formwork calculation library
+  - `calculateBeamFormwork(width, height, length)` - bottom + 2 sides
+  - `calculateSlabFormwork(area)` - soffit only
+  - `calculateRectangularColumnFormwork(width, height, columnHeight)` - 4 sides
+  - `calculateCircularColumnFormwork(diameter, columnHeight)` - cylindrical surface
+  - `calculateMatFormwork(width, length, thickness)` - perimeter edges
+  - `calculateFootingFormwork(length, width, depth)` - all 4 sides
+- `/app/api/projects/[id]/takeoff/route.ts` - Added formwork for all element types
+- `/app/api/projects/[id]/boq/route.ts` - Added formwork processing
+- `/components/TakeoffViewer.tsx` - Added formwork summary and filter
+- `/components/BOQViewer.tsx` - Added formwork display and badges
+
+### Features
+- Formwork calculations for beams, slabs, columns, mat foundations, and footings
+- Contact area formulas account for surfaces requiring formwork
+- Excludes surfaces in contact with soil (e.g., mat/footing bottoms)
+- DPWH item 903 series mapping in BOQ
+- Purple color scheme for formwork (blue=concrete, orange=rebar, purple=formwork)
+- Separate trade totals in summary displays
+- Formwork filtering in takeoff viewer
+- Area reported in m² with 2 decimal precision
 
 ### Tests
-- Surface area formulas
-- Exclusion rules
+- ✅ Surface area formulas validated
+- ✅ Proper exclusion of soil-contact surfaces
+- ✅ BOQ aggregation includes formwork
+- ✅ End-to-end workflow (takeoff → BOQ → display)
+
+### Notes
+- Formwork quantities are based on contact surface areas requiring temporary support
+- Mat foundations: only perimeter edges (bottom on soil)
+- Footings: all 4 vertical sides (bottom on soil)
+- Slabs: soffit only (bottom surface)
+- Beams: bottom + 2 vertical sides (top slab bears on beam)
+- Columns: all sides (rectangular) or cylindrical surface (circular)
+- Ready for Milestone 10 (Structural MVP Complete)
 
 ---
 

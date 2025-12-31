@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { ElementTemplate, DPWHCatalogItem } from '@/types';
 import dpwhCatalog from '@/data/dpwh-catalog.json';
+import { getDPWHRebarItem } from '@/lib/math/rebar';
 
 interface ElementTemplatesEditorProps {
   projectId: string;
@@ -37,9 +38,23 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
   // DPWH Item
   const [formDpwhItemNumber, setFormDpwhItemNumber] = useState('');
   
-  // Get concrete items from catalog
+  // Rebar Configuration
+  const [formMainBarCount, setFormMainBarCount] = useState('');
+  const [formMainBarDiameter, setFormMainBarDiameter] = useState('');
+  const [formMainBarSpacing, setFormMainBarSpacing] = useState('');
+  const [formStirrupDiameter, setFormStirrupDiameter] = useState('');
+  const [formStirrupSpacing, setFormStirrupSpacing] = useState('');
+  const [formSecondaryBarDiameter, setFormSecondaryBarDiameter] = useState('');
+  const [formSecondaryBarSpacing, setFormSecondaryBarSpacing] = useState('');
+  const [formDpwhRebarItem, setFormDpwhRebarItem] = useState('');
+  
+  // Get concrete and rebar items from catalog
   const catalog = dpwhCatalog as { items: DPWHCatalogItem[] };
   const concreteItems = catalog.items.filter(item => item.trade === 'Concrete');
+  const rebarItems = catalog.items.filter(item => item.trade === 'Rebar');
+  
+  // Standard rebar diameters (mm)
+  const rebarDiameters = [10, 12, 16, 20, 25, 28, 32, 36, 40];
 
   useEffect(() => {
     loadTemplates();
@@ -100,6 +115,14 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
     setFoundationWidth('');
     setFoundationDepth('');
     setFormDpwhItemNumber('');
+    setFormMainBarCount('');
+    setFormMainBarDiameter('');
+    setFormMainBarSpacing('');
+    setFormStirrupDiameter('');
+    setFormStirrupSpacing('');
+    setFormSecondaryBarDiameter('');
+    setFormSecondaryBarSpacing('');
+    setFormDpwhRebarItem('');
     setEditingId(null);
   };
 
@@ -170,9 +193,38 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
       return;
     }
 
-    console.log('=== TEMPLATE SAVE DEBUG ===');
-    console.log('formDpwhItemNumber:', formDpwhItemNumber);
-    console.log('editingId:', editingId);
+    // Build rebar config if any rebar fields are filled
+    const rebarConfig: any = {};
+    
+    if (formMainBarDiameter) {
+      rebarConfig.mainBars = {
+        diameter: parseInt(formMainBarDiameter),
+      };
+      if (formMainBarCount) {
+        rebarConfig.mainBars.count = parseInt(formMainBarCount);
+      }
+      if (formMainBarSpacing) {
+        rebarConfig.mainBars.spacing = parseFloat(formMainBarSpacing);
+      }
+    }
+    
+    if (formStirrupDiameter && formStirrupSpacing) {
+      rebarConfig.stirrups = {
+        diameter: parseInt(formStirrupDiameter),
+        spacing: parseFloat(formStirrupSpacing),
+      };
+    }
+    
+    if (formSecondaryBarDiameter && formSecondaryBarSpacing) {
+      rebarConfig.secondaryBars = {
+        diameter: parseInt(formSecondaryBarDiameter),
+        spacing: parseFloat(formSecondaryBarSpacing),
+      };
+    }
+    
+    if (formDpwhRebarItem) {
+      rebarConfig.dpwhRebarItem = formDpwhRebarItem;
+    }
 
     const newTemplate: ElementTemplate = {
       id: editingId || `tpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -180,9 +232,8 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
       name: formName.trim(),
       properties,
       dpwhItemNumber: formDpwhItemNumber || undefined,
+      rebarConfig: Object.keys(rebarConfig).length > 0 ? rebarConfig : undefined,
     };
-
-    console.log('newTemplate.dpwhItemNumber:', newTemplate.dpwhItemNumber);
 
     let updatedTemplates: ElementTemplate[];
     if (editingId) {
@@ -202,6 +253,18 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
     setFormType(template.type);
     setFormName(template.name);
     setFormDpwhItemNumber(template.dpwhItemNumber || '');
+    
+    // Load rebar config
+    if (template.rebarConfig) {
+      setFormMainBarCount(template.rebarConfig.mainBars?.count?.toString() || '');
+      setFormMainBarDiameter(template.rebarConfig.mainBars?.diameter?.toString() || '');
+      setFormMainBarSpacing(template.rebarConfig.mainBars?.spacing?.toString() || '');
+      setFormStirrupDiameter(template.rebarConfig.stirrups?.diameter?.toString() || '');
+      setFormStirrupSpacing(template.rebarConfig.stirrups?.spacing?.toString() || '');
+      setFormSecondaryBarDiameter(template.rebarConfig.secondaryBars?.diameter?.toString() || '');
+      setFormSecondaryBarSpacing(template.rebarConfig.secondaryBars?.spacing?.toString() || '');
+      setFormDpwhRebarItem(template.rebarConfig.dpwhRebarItem || '');
+    }
 
     if (template.type === 'beam') {
       setFormWidth(template.properties.width?.toString() || '');
@@ -256,6 +319,32 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
       }
     }
     return '';
+  };
+
+  const formatRebarConfig = (template: ElementTemplate): string | null => {
+    if (!template.rebarConfig) return null;
+    
+    const parts: string[] = [];
+    
+    if (template.rebarConfig.mainBars) {
+      if (template.rebarConfig.mainBars.count) {
+        parts.push(`${template.rebarConfig.mainBars.count}-${template.rebarConfig.mainBars.diameter}mm`);
+      } else if (template.rebarConfig.mainBars.spacing) {
+        parts.push(`${template.rebarConfig.mainBars.diameter}mm @ ${(template.rebarConfig.mainBars.spacing * 1000).toFixed(0)}mm`);
+      } else {
+        parts.push(`${template.rebarConfig.mainBars.diameter}mm`);
+      }
+    }
+    
+    if (template.rebarConfig.stirrups) {
+      parts.push(`${template.rebarConfig.stirrups.diameter}mm @ ${(template.rebarConfig.stirrups.spacing * 1000).toFixed(0)}mm`);
+    }
+    
+    if (template.rebarConfig.secondaryBars) {
+      parts.push(`Secondary: ${template.rebarConfig.secondaryBars.diameter}mm @ ${(template.rebarConfig.secondaryBars.spacing * 1000).toFixed(0)}mm`);
+    }
+    
+    return parts.length > 0 ? parts.join(', ') : null;
   };
 
   if (loading) {
@@ -553,6 +642,168 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
           </p>
         </div>
 
+        {/* Rebar Configuration */}
+        <div className="mb-4 border-t pt-4">
+          <h4 className="font-medium text-gray-700 mb-3">Rebar Configuration (Optional)</h4>
+          
+          {/* Main Bars */}
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Main Bars {formType === 'slab' || formType === 'foundation' ? '(Direction 1)' : '(Longitudinal)'}
+            </label>
+            <div className={`grid gap-2 ${formType === 'slab' || formType === 'foundation' ? 'grid-cols-2' : 'grid-cols-2'}`}>
+              {formType !== 'slab' && formType !== 'foundation' && (
+                <div>
+                  <input
+                    type="number"
+                    placeholder="Count"
+                    value={formMainBarCount}
+                    onChange={(e) => setFormMainBarCount(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    min="0"
+                    step="1"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Number of bars</p>
+                </div>
+              )}
+              <div>
+                <select
+                  value={formMainBarDiameter}
+                  onChange={(e) => {
+                    const diameter = e.target.value;
+                    setFormMainBarDiameter(diameter);
+                    // Auto-populate DPWH rebar item based on diameter
+                    if (diameter && !formDpwhRebarItem) {
+                      setFormDpwhRebarItem(getDPWHRebarItem(parseInt(diameter)));
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="">Diameter (mm)</option>
+                  {rebarDiameters.map(d => (
+                    <option key={d} value={d}>{d}mm</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Bar diameter</p>
+              </div>
+              {(formType === 'slab' || formType === 'foundation') && (
+                <div>
+                  <input
+                    type="number"
+                    placeholder="Spacing (m)"
+                    value={formMainBarSpacing}
+                    onChange={(e) => setFormMainBarSpacing(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    min="0"
+                    step="0.05"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Spacing (e.g., 0.15)</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Stirrups/Ties */}
+          {(formType === 'beam' || formType === 'column') && (
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {formType === 'beam' ? 'Stirrups' : 'Ties'}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <select
+                    value={formStirrupDiameter}
+                    onChange={(e) => setFormStirrupDiameter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Diameter (mm)</option>
+                    {rebarDiameters.map(d => (
+                      <option key={d} value={d}>{d}mm</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Bar diameter</p>
+                </div>
+                <div>
+                  <input
+                    type="number"
+                    placeholder="Spacing (m)"
+                    value={formStirrupSpacing}
+                    onChange={(e) => setFormStirrupSpacing(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    min="0"
+                    step="0.01"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Center-to-center (m)</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Secondary Bars (Slabs only) */}
+          {formType === 'slab' && (
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Secondary Bars (Direction 2)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <select
+                    value={formSecondaryBarDiameter}
+                    onChange={(e) => setFormSecondaryBarDiameter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Diameter (mm)</option>
+                    {rebarDiameters.map(d => (
+                      <option key={d} value={d}>{d}mm</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Bar diameter</p>
+                </div>
+                <div>
+                  <input
+                    type="number"
+                    placeholder="Spacing (m)"
+                    value={formSecondaryBarSpacing}
+                    onChange={(e) => setFormSecondaryBarSpacing(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    min="0"
+                    step="0.01"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Center-to-center (m)</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DPWH Rebar Item */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              DPWH Rebar Item (for BOQ)
+            </label>
+            <select
+              value={formDpwhRebarItem}
+              onChange={(e) => setFormDpwhRebarItem(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+            >
+              <option value="">Select rebar class (optional)</option>
+              {rebarItems.map((item) => (
+                <option key={item.itemNumber} value={item.itemNumber}>
+                  {item.itemNumber} - {item.description}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {formMainBarDiameter ? (
+                <span className="text-green-600">
+                  Auto-selected: {getDPWHRebarItem(parseInt(formMainBarDiameter))} (Grade {parseInt(formMainBarDiameter) <= 12 ? '40' : parseInt(formMainBarDiameter) <= 36 ? '60' : '80'}) - Can override manually
+                </span>
+              ) : (
+                'Automatically selected based on main bar diameter (≤12mm = Grade 40, 16-36mm = Grade 60, ≥40mm = Grade 80)'
+              )}
+            </p>
+          </div>
+        </div>
+
         {/* Action Buttons */}
         <div className="flex gap-2">
           <button
@@ -586,10 +837,12 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
                 <div key={template.id} className="flex justify-between items-start p-2 bg-gray-50 rounded">
                   <div className="flex-1">
                     <div className="font-medium text-sm">{template.name}</div>
-                    <div className="text-xs text-gray-600">{formatProperties(template)}</div>                    {template.dpwhItemNumber && (
+                    <div className="text-xs text-gray-600">{formatProperties(template)}</div>
+                    {template.dpwhItemNumber && (
                       <div className="text-xs text-blue-600 mt-1">DPWH: {template.dpwhItemNumber}</div>
-                    )}                    {template.dpwhItemNumber && (
-                      <div className="text-xs text-blue-600 mt-1">DPWH: {template.dpwhItemNumber}</div>
+                    )}
+                    {formatRebarConfig(template) && (
+                      <div className="text-xs text-green-600 mt-1">Rebar: {formatRebarConfig(template)}</div>
                     )}
                   </div>
                   <div className="flex gap-1 ml-2">
@@ -627,6 +880,9 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
                     {template.dpwhItemNumber && (
                       <div className="text-xs text-blue-600 mt-1">DPWH: {template.dpwhItemNumber}</div>
                     )}
+                    {formatRebarConfig(template) && (
+                      <div className="text-xs text-green-600 mt-1">Rebar: {formatRebarConfig(template)}</div>
+                    )}
                   </div>
                   <div className="flex gap-1 ml-2">
                     <button
@@ -663,6 +919,9 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
                     {template.dpwhItemNumber && (
                       <div className="text-xs text-blue-600 mt-1">DPWH: {template.dpwhItemNumber}</div>
                     )}
+                    {formatRebarConfig(template) && (
+                      <div className="text-xs text-green-600 mt-1">Rebar: {formatRebarConfig(template)}</div>
+                    )}
                   </div>
                   <div className="flex gap-1 ml-2">
                     <button
@@ -698,6 +957,9 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
                     <div className="text-xs text-gray-600">{formatProperties(template)}</div>
                     {template.dpwhItemNumber && (
                       <div className="text-xs text-blue-600 mt-1">DPWH: {template.dpwhItemNumber}</div>
+                    )}
+                    {formatRebarConfig(template) && (
+                      <div className="text-xs text-green-600 mt-1">Rebar: {formatRebarConfig(template)}</div>
                     )}
                   </div>
                   <div className="flex gap-1 ml-2">

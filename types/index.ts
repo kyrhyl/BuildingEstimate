@@ -37,18 +37,36 @@ export interface Level {
   elevation: number; // meters from reference datum
 }
 
+export interface RebarConfig {
+  // Main reinforcement (longitudinal bars)
+  mainBars?: {
+    count?: number;       // Number of bars (for beams/columns)
+    diameter: number;     // Bar diameter in mm (10, 12, 16, 20, 25, 28, 32, 36, 40)
+    spacing?: number;     // Center-to-center spacing in meters (for slabs/foundations)
+  };
+  // Lateral reinforcement (stirrups/ties)
+  stirrups?: {
+    diameter: number;    // Stirrup diameter in mm
+    spacing: number;     // Center-to-center spacing in meters
+  };
+  // For slabs/foundations: secondary reinforcement (perpendicular to main)
+  secondaryBars?: {
+    diameter: number;    // Bar diameter in mm
+    spacing: number;     // Center-to-center spacing in meters
+  };
+  // DPWH rebar item number for BOQ mapping
+  dpwhRebarItem?: string; // e.g., "902 (1) a1" - 10mm deformed bars
+}
+
 export interface ElementTemplate {
   id: string;
   type: 'beam' | 'slab' | 'column' | 'foundation';
   name: string;
   properties: Record<string, number>; // e.g., { width: 0.3, height: 0.5 }
   dpwhItemNumber?: string; // DPWH catalog item for BOQ mapping (e.g., "900 (1) a")
-  // Rebar properties (for future milestones)
-  rebarConfig?: {
-    mainBars?: { count: number; diameter: number };
-    stirrups?: { diameter: number; spacing: number };
-  };
+  rebarConfig?: RebarConfig;
 }
+
 
 export interface ElementInstance {
   id: string;

@@ -31,26 +31,38 @@ export async function POST(
       );
     }
 
-    // Only process concrete takeoff lines for BOQ v1
+    // Process concrete, rebar, and formwork takeoff lines
     const concreteTakeoffLines = takeoffLines.filter(
       line => line.trade === 'Concrete'
     );
+    const rebarTakeoffLines = takeoffLines.filter(
+      line => line.trade === 'Rebar'
+    );
+    const formworkTakeoffLines = takeoffLines.filter(
+      line => line.trade === 'Formwork'
+    );
 
-    if (concreteTakeoffLines.length === 0) {
+    if (concreteTakeoffLines.length === 0 && rebarTakeoffLines.length === 0 && formworkTakeoffLines.length === 0) {
       return NextResponse.json({
         boqLines: [],
         summary: {
           totalLines: 0,
           trades: {},
         },
-        warnings: ['No concrete takeoff lines to process'],
+        warnings: ['No concrete, rebar, or formwork takeoff lines to process'],
       });
     }
 
-    // Get concrete catalog items (900-901, 904 series)
+    // Get catalog items
     const catalog = dpwhCatalog as { items: DPWHCatalogItem[] };
     const concreteCatalogItems = catalog.items.filter(
       item => item.trade === 'Concrete'
+    );
+    const rebarCatalogItems = catalog.items.filter(
+      item => item.trade === 'Rebar'
+    );
+    const formworkCatalogItems = catalog.items.filter(
+      item => item.trade === 'Formwork'
     );
 
     const errors: string[] = [];
@@ -59,12 +71,27 @@ export async function POST(
     const defaultConcreteItem = concreteCatalogItems.find(
       item => item.itemNumber === '900 (1) a' // Structural Concrete, Class A, 3000 psi, 7 days
     );
+    const defaultRebarItem = rebarCatalogItems.find(
+      item => item.itemNumber === '902 (1) a2' // Grade 60 deformed bars
+    );
+    const defaultFormworkItem = formworkCatalogItems.find(
+      item => item.itemNumber === '903 (1)' // Formwork for Concrete Structures
+    );
 
     if (!defaultConcreteItem) {
       return NextResponse.json(
         { error: 'Default concrete item not found in DPWH catalog' },
         { status: 500 }
       );
+    }
+    if (!defaultRebarItem) {
+      return NextResponse.json(
+        { error: 'Default rebar item not found in DPWH catalog' },
+        { status: 500 }
+      );
+    }
+    if (!defaultFormworkItem) {
+      warnings.push('Default formwork item not found in DPWH catalog - formwork will be skipped');
     }
 
     // Group takeoff lines by DPWH item number only
@@ -100,7 +127,7 @@ export async function POST(
 
     const boqLines: BOQLine[] = [];
 
-    // Create one BOQ line per DPWH item
+    // Create one BOQ line per DPWH item (concrete)
     for (const [dpwhItemNumber, lines] of Object.entries(groupedByItem)) {
       const catalogItem = concreteCatalogItems.find(item => item.itemNumber === dpwhItemNumber);
       
@@ -142,14 +169,144 @@ export async function POST(
       boqLines.push(boqLine);
     }
 
+    // Process rebar takeoff lines
+    const groupedRebarByItem: Record<string, TakeoffLine[]> = {};
+    
+    for (const line of rebarTakeoffLines) {
+      // Get DPWH item from line assumptions (embedded in calculation)
+      const dpwhItemAssumption = line.assumptions.find(a => a.includes('DPWH Item:'));
+      const dpwhItemMatch = dpwhItemAssumption?.match(/DPWH Item: ([^,]+)/);
+      const dpwhItemNumber = dpwhItemMatch ? dpwhItemMatch[1].trim() : defaultRebarItem.itemNumber;
+      
+      if (!groupedRebarByItem[dpwhItemNumber]) {
+        groupedRebarByItem[dpwhItemNumber] = [];
+      }
+      
+      groupedRebarByItem[dpwhItemNumber].push(line);
+    }
+
+    // Create BOQ lines for rebar
+    for (const [dpwhItemNumber, lines] of Object.entries(groupedRebarByItem)) {
+      const catalogItem = rebarCatalogItems.find(item => item.itemNumber === dpwhItemNumber);
+      
+      if (!catalogItem) {
+        errors.push(`Rebar DPWH item ${dpwhItemNumber} not found in catalog`);
+        continue;
+      }
+      
+      const totalQuantity = lines.reduce((sum, line) => sum + line.quantity, 0);
+      const sourceTakeoffLineIds = lines.map(line => line.id);
+      
+      // Collect all tags from source lines
+      const allTags = new Set<string>();
+      lines.forEach(line => line.tags.forEach(tag => allTags.add(tag)));
+      
+      // Count element types and rebar types
+      const elementTypeCounts: Record<string, number> = {};
+      const rebarTypeCounts: Record<string, number> = {};
+      lines.forEach(line => {
+        const typeTag = line.tags.find(tag => tag.startsWith('type:'));
+        const type = typeTag?.replace('type:', '') || 'unknown';
+        elementTypeCounts[type] = (elementTypeCounts[type] || 0) + 1;
+        
+        const rebarTypeTag = line.tags.find(tag => tag.startsWith('rebar:'));
+        const rebarType = rebarTypeTag?.replace('rebar:', '') || 'main';
+        rebarTypeCounts[rebarType] = (rebarTypeCounts[rebarType] || 0) + 1;
+      });
+
+      const boqLine: BOQLine = {
+        id: `boq_${dpwhItemNumber.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        dpwhItemNumberRaw: catalogItem.itemNumber,
+        description: catalogItem.description,
+        unit: 'kg',
+        quantity: Math.round(totalQuantity * 100) / 100, // 2 decimal places
+        sourceTakeoffLineIds,
+        tags: [
+          `dpwh:${catalogItem.itemNumber}`,
+          `trade:Rebar`,
+          `elements:${Object.entries(elementTypeCounts).map(([type, count]) => `${count} ${type}`).join(', ')}`,
+          `rebar-types:${Object.entries(rebarTypeCounts).map(([type, count]) => `${count} ${type}`).join(', ')}`,
+          ...Array.from(allTags).filter(tag => !tag.startsWith('type:') && !tag.startsWith('rebar:')),
+        ],
+      };
+
+      boqLines.push(boqLine);
+    }
+
+    // Process formwork takeoff lines (if default item exists)
+    if (defaultFormworkItem && formworkTakeoffLines.length > 0) {
+      const groupedFormworkByItem: Record<string, TakeoffLine[]> = {};
+      
+      for (const line of formworkTakeoffLines) {
+        // All formwork uses default item for now (903 series)
+        const dpwhItemNumber = defaultFormworkItem.itemNumber;
+        
+        if (!groupedFormworkByItem[dpwhItemNumber]) {
+          groupedFormworkByItem[dpwhItemNumber] = [];
+        }
+        
+        groupedFormworkByItem[dpwhItemNumber].push(line);
+      }
+
+      // Create BOQ lines for formwork
+      for (const [dpwhItemNumber, lines] of Object.entries(groupedFormworkByItem)) {
+        const catalogItem = formworkCatalogItems.find(item => item.itemNumber === dpwhItemNumber);
+        
+        if (!catalogItem) {
+          errors.push(`Formwork DPWH item ${dpwhItemNumber} not found in catalog`);
+          continue;
+        }
+        
+        const totalQuantity = lines.reduce((sum, line) => sum + line.quantity, 0);
+        const sourceTakeoffLineIds = lines.map(line => line.id);
+        
+        // Collect all tags from source lines
+        const allTags = new Set<string>();
+        lines.forEach(line => line.tags.forEach(tag => allTags.add(tag)));
+        
+        // Count element types
+        const elementTypeCounts: Record<string, number> = {};
+        lines.forEach(line => {
+          const typeTag = line.tags.find(tag => tag.startsWith('type:'));
+          const type = typeTag?.replace('type:', '') || 'unknown';
+          elementTypeCounts[type] = (elementTypeCounts[type] || 0) + 1;
+        });
+
+        const boqLine: BOQLine = {
+          id: `boq_${dpwhItemNumber.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          dpwhItemNumberRaw: catalogItem.itemNumber,
+          description: catalogItem.description,
+          unit: 'sq.m',
+          quantity: Math.round(totalQuantity * 100) / 100, // 2 decimal places
+          sourceTakeoffLineIds,
+          tags: [
+            `dpwh:${catalogItem.itemNumber}`,
+            `trade:Formwork`,
+            `elements:${Object.entries(elementTypeCounts).map(([type, count]) => `${count} ${type}`).join(', ')}`,
+            ...Array.from(allTags).filter(tag => !tag.startsWith('type:')),
+          ],
+        };
+
+        boqLines.push(boqLine);
+      }
+    }
+
     // Calculate summary
-    const totalQuantity = boqLines.reduce((sum, line) => sum + line.quantity, 0);
+    const concreteLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Concrete'));
+    const rebarLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Rebar'));
+    const formworkLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Formwork'));
+    
+    const totalConcreteQty = concreteLines.reduce((sum, line) => sum + line.quantity, 0);
+    const totalRebarQty = rebarLines.reduce((sum, line) => sum + line.quantity, 0);
+    const totalFormworkQty = formworkLines.reduce((sum, line) => sum + line.quantity, 0);
 
     const summary = {
       totalLines: boqLines.length,
-      totalQuantity,
+      totalQuantity: totalConcreteQty + totalRebarQty + totalFormworkQty,
       trades: {
-        Concrete: totalQuantity,
+        Concrete: totalConcreteQty,
+        Rebar: totalRebarQty,
+        Formwork: totalFormworkQty,
       },
     };
 

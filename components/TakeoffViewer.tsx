@@ -10,6 +10,8 @@ interface TakeoffViewerProps {
 
 interface TakeoffSummary {
   totalConcrete: number;
+  totalRebar: number;
+  totalFormwork: number;
   elementCount: number;
   takeoffLineCount: number;
 }
@@ -30,6 +32,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
   const [filterType, setFilterType] = useState<string>('all');
   const [lastCalculated, setLastCalculated] = useState<string | null>(null);
   const [hasCalcRun, setHasCalcRun] = useState(false);
+  const [summarizedView, setSummarizedView] = useState(true);
 
   // Load latest CalcRun on mount
   useEffect(() => {
@@ -98,9 +101,11 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
   // Filter takeoff lines by type
   const filteredLines = filterType === 'all' 
     ? takeoffLines 
+    : filterType === 'Concrete' || filterType === 'Rebar' || filterType === 'Formwork'
+    ? takeoffLines.filter(line => line.trade === filterType)
     : takeoffLines.filter(line => {
         const typeTag = line.tags.find(tag => tag.startsWith('type:'));
-        return typeTag === `type:${filterType}`;
+        return typeTag === filterType;
       });
 
   // Group by element type
@@ -157,11 +162,23 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
       {summary && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h4 className="font-semibold text-blue-900 mb-4">Summary</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <div className="text-sm text-blue-700">Total Concrete</div>
               <div className="text-2xl font-bold text-blue-900">
                 {summary.totalConcrete.toFixed(3)} m³
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-orange-700">Total Rebar</div>
+              <div className="text-2xl font-bold text-orange-900">
+                {summary.totalRebar?.toFixed(2) || '0.00'} kg
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-purple-700">Total Formwork</div>
+              <div className="text-2xl font-bold text-purple-900">
+                {summary.totalFormwork?.toFixed(2) || '0.00'} m²
               </div>
             </div>
             <div>
@@ -225,22 +242,61 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
       {takeoffLines.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h4 className="font-semibold text-gray-700">Takeoff Lines</h4>
+            <div className="flex items-center gap-4">
+              <h4 className="font-semibold text-gray-700">Takeoff Lines</h4>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSummarizedView(true)}
+                  className={`px-3 py-1 text-sm rounded ${
+                    summarizedView
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Summarized
+                </button>
+                <button
+                  onClick={() => setSummarizedView(false)}
+                  className={`px-3 py-1 text-sm rounded ${
+                    !summarizedView
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Detailed
+                </button>
+              </div>
+            </div>
             
             {/* Filter */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">Filter:</label>
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="px-3 py-1 border border-gray-300 rounded text-sm"
-              >
-                <option value="all">All Types</option>
-                <option value="beam">Beams Only</option>
-                <option value="slab">Slabs Only</option>
-                <option value="column">Columns Only</option>
-                <option value="foundation">Foundations Only</option>
-              </select>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Trade:</label>
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="px-3 py-1 border border-gray-300 rounded text-sm"
+                >
+                  <option value="all">All Trades</option>
+                  <option value="Concrete">Concrete Only</option>
+                  <option value="Rebar">Rebar Only</option>
+                  <option value="Formwork">Formwork Only</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Element:</label>
+                <select
+                  value={filterType.startsWith('type:') ? filterType.replace('type:', '') : 'all'}
+                  onChange={(e) => setFilterType(e.target.value === 'all' ? 'all' : `type:${e.target.value}`)}
+                  className="px-3 py-1 border border-gray-300 rounded text-sm"
+                >
+                  <option value="all">All Elements</option>
+                  <option value="beam">Beams</option>
+                  <option value="slab">Slabs</option>
+                  <option value="column">Columns</option>
+                  <option value="foundation">Foundations</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -251,13 +307,41 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Template</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
+                  {summarizedView && (
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Count</th>
+                  )}
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Formula</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assumptions</th>
+                  {!summarizedView && (
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assumptions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredLines.map((line) => {
+                {(summarizedView ? (() => {
+                  // Group by template + level + trade to create summarized view
+                  const grouped: Record<string, TakeoffLine[]> = {};
+                  
+                  filteredLines.forEach(line => {
+                    const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'Unknown';
+                    const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'Unknown';
+                    const key = `${line.trade}_${templateTag}_${levelTag}`;
+                    
+                    if (!grouped[key]) {
+                      grouped[key] = [];
+                    }
+                    grouped[key].push(line);
+                  });
+                  
+                  return Object.values(grouped).map(lines => ({
+                    ...lines[0],
+                    id: `grouped_${lines[0].id}`,
+                    quantity: lines.reduce((sum, line) => sum + line.quantity, 0),
+                    formulaText: lines.length > 1 ? `${lines.length} instances` : lines[0].formulaText,
+                  }));
+                })() : filteredLines).map((line, idx) => {
+                  const isGrouped = summarizedView && line.formulaText.includes('instances');
+                  const instanceCount = isGrouped ? parseInt(line.formulaText.split(' ')[0]) : 0;
                   const typeTag = line.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') || 'unknown';
                   const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'Unknown';
                   const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'Unknown';
@@ -278,17 +362,24 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">{templateTag}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{levelTag}</td>
+                      {summarizedView && (
+                        <td className="px-4 py-3 text-sm text-center font-semibold text-gray-700">
+                          {isGrouped ? instanceCount : 1}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
-                        {line.quantity.toFixed(3)} {line.unit}
+                        {line.quantity.toFixed(line.unit === 'kg' ? 2 : 3)} {line.unit}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-600 font-mono max-w-md">
-                        {line.formulaText}
+                        {isGrouped ? `Total of ${instanceCount} instances` : line.formulaText}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-500">
-                        {line.assumptions.map((assumption, idx) => (
-                          <div key={idx}>• {assumption}</div>
-                        ))}
-                      </td>
+                      {!summarizedView && (
+                        <td className="px-4 py-3 text-xs text-gray-500">
+                          {line.assumptions.map((assumption, idx) => (
+                            <div key={idx}>• {assumption}</div>
+                          ))}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

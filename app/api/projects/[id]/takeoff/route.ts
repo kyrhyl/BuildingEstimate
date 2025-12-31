@@ -4,6 +4,25 @@ import Project from '@/models/Project';
 import CalcRun from '@/models/CalcRun';
 import type { TakeoffLine, ElementInstance, ElementTemplate, GridLine, Level } from '@/types';
 import { calculateBeamConcrete, calculateSlabConcrete, calculateColumnConcrete, calculateFootingConcrete, roundVolume } from '@/lib/math/concrete';
+import { 
+  calculateBeamMainBars, 
+  calculateBeamStirrupsWeight, 
+  calculateSlabMainBars,
+  calculateColumnMainBars,
+  calculateColumnTiesWeight,
+  getDPWHRebarItem,
+  getRebarGrade,
+  calculateLapLength
+} from '@/lib/math/rebar';
+import {
+  calculateBeamFormwork,
+  calculateSlabFormwork,
+  calculateRectangularColumnFormwork,
+  calculateCircularColumnFormwork,
+  calculateMatFormwork,
+  calculateFootingFormwork,
+  roundArea
+} from '@/lib/math/formwork';
 
 // POST /api/projects/:id/takeoff - Generate concrete takeoff from element instances
 export async function POST(
@@ -148,6 +167,100 @@ export async function POST(
 
           takeoffLines.push(takeoffLine);
 
+          // Rebar calculation for beam (if configured)
+          if (template.rebarConfig) {
+            // Main bars (longitudinal)
+            if (template.rebarConfig.mainBars?.count && template.rebarConfig.mainBars.diameter) {
+              const mainBarsResult = calculateBeamMainBars(
+                template.rebarConfig.mainBars.diameter,
+                template.rebarConfig.mainBars.count,
+                length,
+                settings.waste.rebar
+              );
+
+              const dpwhRebarItem = template.rebarConfig.dpwhRebarItem || 
+                getDPWHRebarItem(template.rebarConfig.mainBars.diameter);
+
+              takeoffLines.push({
+                id: `tof_${instance.id}_rebar_main`,
+                sourceElementId: instance.id,
+                trade: 'Rebar',
+                resourceKey: `rebar-${template.rebarConfig.mainBars.diameter}mm`,
+                quantity: Math.round(mainBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+                unit: 'kg',
+                formulaText: mainBarsResult.formulaText,
+                inputsSnapshot: mainBarsResult.inputs,
+                assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
+                tags: [
+                  `type:beam`,
+                  `rebar:main`,
+                  `template:${template.name}`,
+                  `level:${level.label}`,
+                  `dpwh:${dpwhRebarItem}`,
+                  ...(instance.tags || []),
+                ],
+                calculatedAt: new Date(),
+              });
+            }
+
+            // Stirrups
+            if (template.rebarConfig.stirrups) {
+              const stirrupsResult = calculateBeamStirrupsWeight(
+                template.rebarConfig.stirrups.diameter,
+                template.rebarConfig.stirrups.spacing,
+                length,
+                width,
+                height,
+                settings.waste.rebar
+              );
+
+              const dpwhRebarItem = getDPWHRebarItem(template.rebarConfig.stirrups.diameter);
+
+              takeoffLines.push({
+                id: `tof_${instance.id}_rebar_stirrups`,
+                sourceElementId: instance.id,
+                trade: 'Rebar',
+                resourceKey: `rebar-${template.rebarConfig.stirrups.diameter}mm`,
+                quantity: Math.round(stirrupsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+                unit: 'kg',
+                formulaText: stirrupsResult.formulaText,
+                inputsSnapshot: stirrupsResult.inputs,
+                assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
+                tags: [
+                  `type:beam`,
+                  `rebar:stirrups`,
+                  `template:${template.name}`,
+                  `level:${level.label}`,
+                  `dpwh:${dpwhRebarItem}`,
+                  ...(instance.tags || []),
+                ],
+                calculatedAt: new Date(),
+              });
+            }
+          }
+
+          // Formwork calculation for beam
+          const formworkResult = calculateBeamFormwork(width, height, length);
+          
+          takeoffLines.push({
+            id: `tof_${instance.id}_formwork`,
+            sourceElementId: instance.id,
+            trade: 'Formwork',
+            resourceKey: 'formwork-beam',
+            quantity: roundArea(formworkResult.area, settings.rounding.formwork),
+            unit: 'm²',
+            formulaText: formworkResult.formulaText,
+            inputsSnapshot: formworkResult.inputs,
+            assumptions: ['Contact area: bottom + 2 sides'],
+            tags: [
+              `type:beam`,
+              `template:${template.name}`,
+              `level:${level.label}`,
+              ...(instance.tags || []),
+            ],
+            calculatedAt: new Date(),
+          });
+
         } else if (template.type === 'slab' && instance.placement.gridRef && instance.placement.gridRef.length >= 2) {
           // Slab calculation
           const [xRef, yRef] = instance.placement.gridRef;
@@ -203,6 +316,108 @@ export async function POST(
           };
 
           takeoffLines.push(takeoffLine);
+
+          // Rebar calculation for slab (if configured)
+          if (template.rebarConfig) {
+            const xLength = Math.abs(x2 - x1);
+            const yLength = Math.abs(y2 - y1);
+
+            // Main bars (typically in longer direction)
+            if (template.rebarConfig.mainBars && template.rebarConfig.mainBars.diameter) {
+              // Use spacing or calculate from count
+              const spacing = template.rebarConfig.mainBars.count 
+                ? yLength / (template.rebarConfig.mainBars.count - 1)
+                : 0.15; // default 150mm spacing
+
+              const mainBarsResult = calculateSlabMainBars(
+                template.rebarConfig.mainBars.diameter,
+                spacing,
+                xLength, // bar length
+                1, // single span for this panel
+                settings.waste.rebar
+              );
+
+              const dpwhRebarItem = template.rebarConfig.dpwhRebarItem || 
+                getDPWHRebarItem(template.rebarConfig.mainBars.diameter);
+
+              takeoffLines.push({
+                id: `tof_${instance.id}_rebar_main`,
+                sourceElementId: instance.id,
+                trade: 'Rebar',
+                resourceKey: `rebar-${template.rebarConfig.mainBars.diameter}mm`,
+                quantity: Math.round(mainBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+                unit: 'kg',
+                formulaText: mainBarsResult.formulaText,
+                inputsSnapshot: mainBarsResult.inputs,
+                assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
+                tags: [
+                  `type:slab`,
+                  `rebar:main`,
+                  `template:${template.name}`,
+                  `level:${level.label}`,
+                  `dpwh:${dpwhRebarItem}`,
+                  ...(instance.tags || []),
+                ],
+                calculatedAt: new Date(),
+              });
+            }
+
+            // Secondary bars (perpendicular direction)
+            if (template.rebarConfig.secondaryBars) {
+              const secondaryBarsResult = calculateSlabMainBars(
+                template.rebarConfig.secondaryBars.diameter,
+                template.rebarConfig.secondaryBars.spacing,
+                yLength, // bar length in perpendicular direction
+                1,
+                settings.waste.rebar
+              );
+
+              const dpwhRebarItem = getDPWHRebarItem(template.rebarConfig.secondaryBars.diameter);
+
+              takeoffLines.push({
+                id: `tof_${instance.id}_rebar_secondary`,
+                sourceElementId: instance.id,
+                trade: 'Rebar',
+                resourceKey: `rebar-${template.rebarConfig.secondaryBars.diameter}mm`,
+                quantity: Math.round(secondaryBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+                unit: 'kg',
+                formulaText: secondaryBarsResult.formulaText,
+                inputsSnapshot: secondaryBarsResult.inputs,
+                assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
+                tags: [
+                  `type:slab`,
+                  `rebar:secondary`,
+                  `template:${template.name}`,
+                  `level:${level.label}`,
+                  `dpwh:${dpwhRebarItem}`,
+                  ...(instance.tags || []),
+                ],
+                calculatedAt: new Date(),
+              });
+            }
+          }
+
+          // Formwork calculation for slab (soffit)
+          const formworkResult = calculateSlabFormwork(area);
+          
+          takeoffLines.push({
+            id: `tof_${instance.id}_formwork`,
+            sourceElementId: instance.id,
+            trade: 'Formwork',
+            resourceKey: 'formwork-slab',
+            quantity: roundArea(formworkResult.area, settings.rounding.formwork),
+            unit: 'm²',
+            formulaText: formworkResult.formulaText,
+            inputsSnapshot: formworkResult.inputs,
+            assumptions: ['Soffit formwork (bottom surface)'],
+            tags: [
+              `type:slab`,
+              `template:${template.name}`,
+              `level:${level.label}`,
+              ...(instance.tags || []),
+            ],
+            calculatedAt: new Date(),
+          });
 
         } else if (template.type === 'column') {
           // Column calculation - height is from current level to end level (or next level if not specified)
@@ -290,6 +505,109 @@ export async function POST(
 
           takeoffLines.push(takeoffLine);
 
+          // Rebar calculation for column (if configured)
+          if (template.rebarConfig) {
+            // Main bars (longitudinal)
+            if (template.rebarConfig.mainBars?.count && template.rebarConfig.mainBars.diameter) {
+              const mainBarsResult = calculateColumnMainBars(
+                template.rebarConfig.mainBars.diameter,
+                template.rebarConfig.mainBars.count,
+                columnHeight,
+                settings.waste.rebar
+              );
+
+              const dpwhRebarItem = template.rebarConfig.dpwhRebarItem || 
+                getDPWHRebarItem(template.rebarConfig.mainBars.diameter);
+
+              takeoffLines.push({
+                id: `tof_${instance.id}_rebar_main`,
+                sourceElementId: instance.id,
+                trade: 'Rebar',
+                resourceKey: `rebar-${template.rebarConfig.mainBars.diameter}mm`,
+                quantity: Math.round(mainBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+                unit: 'kg',
+                formulaText: mainBarsResult.formulaText,
+                inputsSnapshot: mainBarsResult.inputs,
+                assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
+                tags: [
+                  `type:column`,
+                  `rebar:main`,
+                  `template:${template.name}`,
+                  `level:${level.label}`,
+                  `dpwh:${dpwhRebarItem}`,
+                  ...(instance.tags || []),
+                ],
+                calculatedAt: new Date(),
+              });
+            }
+
+            // Ties
+            if (template.rebarConfig.stirrups && width && height) {
+              const tiesResult = calculateColumnTiesWeight(
+                template.rebarConfig.stirrups.diameter,
+                template.rebarConfig.stirrups.spacing,
+                columnHeight,
+                width,
+                height,
+                settings.waste.rebar
+              );
+
+              const dpwhRebarItem = getDPWHRebarItem(template.rebarConfig.stirrups.diameter);
+
+              takeoffLines.push({
+                id: `tof_${instance.id}_rebar_ties`,
+                sourceElementId: instance.id,
+                trade: 'Rebar',
+                resourceKey: `rebar-${template.rebarConfig.stirrups.diameter}mm`,
+                quantity: Math.round(tiesResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+                unit: 'kg',
+                formulaText: tiesResult.formulaText,
+                inputsSnapshot: tiesResult.inputs,
+                assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
+                tags: [
+                  `type:column`,
+                  `rebar:ties`,
+                  `template:${template.name}`,
+                  `level:${level.label}`,
+                  `dpwh:${dpwhRebarItem}`,
+                  ...(instance.tags || []),
+                ],
+                calculatedAt: new Date(),
+              });
+            }
+          }
+
+          // Formwork calculation for column
+          let formworkResult;
+          if (diameter) {
+            // Circular column
+            formworkResult = calculateCircularColumnFormwork(diameter, columnHeight);
+          } else if (width && height) {
+            // Rectangular column
+            formworkResult = calculateRectangularColumnFormwork(width, height, columnHeight);
+          }
+
+          if (formworkResult) {
+            takeoffLines.push({
+              id: `tof_${instance.id}_formwork`,
+              sourceElementId: instance.id,
+              trade: 'Formwork',
+              resourceKey: 'formwork-column',
+              quantity: roundArea(formworkResult.area, settings.rounding.formwork),
+              unit: 'm²',
+              formulaText: formworkResult.formulaText,
+              inputsSnapshot: formworkResult.inputs,
+              assumptions: [diameter ? 'Cylindrical surface' : 'All 4 sides'],
+              tags: [
+                `type:column`,
+                `template:${template.name}`,
+                `level:${level.label}`,
+                ...(instance.tags || []),
+              ],
+              calculatedAt: new Date(),
+            });
+          }
+
         } else if (template.type === 'foundation') {
           // Foundation calculation
           const isMat = template.properties.thickness !== undefined;
@@ -355,6 +673,129 @@ export async function POST(
 
             takeoffLines.push(takeoffLine);
 
+            // Mat foundation rebar calculations (if configured)
+            if (template.rebarConfig) {
+              const rebarConfig = template.rebarConfig;
+
+              // Main bars (bottom mat)
+              if (rebarConfig.mainBars?.diameter) {
+                const diameter = rebarConfig.mainBars.diameter;
+                const spacing = rebarConfig.mainBars.spacing || 0.15; // Default 150mm spacing
+
+                // Main bars in one direction
+                const mainBarsResult = calculateSlabMainBars(
+                  diameter,
+                  spacing,
+                  width, // bar length
+                  1, // single slab (already has full area)
+                  settings.waste.rebar
+                );
+
+                const dpwhMainItem = rebarConfig.dpwhRebarItem || getDPWHRebarItem(diameter, false);
+
+                const mainTakeoffLine: TakeoffLine = {
+                  id: `tof_${instance.id}_rebar_main`,
+                  sourceElementId: instance.id,
+                  trade: 'Rebar',
+                  resourceKey: `rebar-${diameter}mm`,
+                  quantity: Math.round(mainBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+                  unit: 'kg',
+                  formulaText: mainBarsResult.formulaText,
+                  inputsSnapshot: mainBarsResult.inputs,
+                  assumptions: [
+                    `Lap: ${calculateLapLength(diameter).toFixed(2)}m`,
+                    `Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`,
+                    `DPWH Item: ${dpwhMainItem}`,
+                    `Grade: ${getRebarGrade(diameter)}`,
+                  ],
+                  tags: [
+                    `type:foundation`,
+                    `subtype:mat`,
+                    `template:${template.name}`,
+                    `level:${level.label}`,
+                    `rebar:main`,
+                    `dpwh:${dpwhMainItem}`,
+                    ...(instance.tags || []),
+                  ],
+                  calculatedAt: new Date(),
+                };
+
+                takeoffLines.push(mainTakeoffLine);
+              }
+
+              // Secondary bars (top mat - perpendicular direction)
+              if (rebarConfig.secondaryBars?.diameter) {
+                const diameter = rebarConfig.secondaryBars.diameter;
+                const spacing = rebarConfig.secondaryBars.spacing || 0.15; // Default 150mm spacing
+
+                const secondaryBarsResult = calculateSlabMainBars(
+                  diameter,
+                  spacing,
+                  height, // bar length in perpendicular direction
+                  1, // single slab
+                  settings.waste.rebar
+                );
+
+                const dpwhSecondaryItem = rebarConfig.dpwhRebarItem || getDPWHRebarItem(diameter, false);
+
+                const secondaryTakeoffLine: TakeoffLine = {
+                  id: `tof_${instance.id}_rebar_secondary`,
+                  sourceElementId: instance.id,
+                  trade: 'Rebar',
+                  resourceKey: `rebar-${diameter}mm`,
+                  quantity: Math.round(secondaryBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+                  unit: 'kg',
+                  formulaText: secondaryBarsResult.formulaText,
+                  inputsSnapshot: secondaryBarsResult.inputs,
+                  assumptions: [
+                    `Lap: ${calculateLapLength(diameter).toFixed(2)}m`,
+                    `Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`,
+                    `DPWH Item: ${dpwhSecondaryItem}`,
+                    `Grade: ${getRebarGrade(diameter)}`,
+                  ],
+                  tags: [
+                    `type:foundation`,
+                    `subtype:mat`,
+                    `template:${template.name}`,
+                    `level:${level.label}`,
+                    `rebar:secondary`,
+                    `dpwh:${dpwhSecondaryItem}`,
+                    ...(instance.tags || []),
+                  ],
+                  calculatedAt: new Date(),
+                };
+
+                takeoffLines.push(secondaryTakeoffLine);
+              }
+
+              // Mat formwork (perimeter edges only)
+              const matFormworkResult = calculateMatFormwork(width, height, thickness);
+              
+              const matFormworkLine: TakeoffLine = {
+                id: `tof_${instance.id}_formwork`,
+                sourceElementId: instance.id,
+                trade: 'Formwork',
+                resourceKey: 'formwork-mat',
+                quantity: roundArea(matFormworkResult.area, settings.rounding.formwork || 2),
+                unit: 'm²',
+                formulaText: matFormworkResult.formulaText,
+                inputsSnapshot: matFormworkResult.inputs,
+                assumptions: [
+                  'Perimeter edge formwork only (bottom in contact with soil)',
+                ],
+                tags: [
+                  `type:foundation`,
+                  `subtype:mat`,
+                  `template:${template.name}`,
+                  `level:${level.label}`,
+                  ...(instance.tags || []),
+                ],
+                calculatedAt: new Date(),
+              };
+
+              takeoffLines.push(matFormworkLine);
+            }
+
           } else {
             // Footing (box)
             const length = typeof template.properties.length === 'number' ? template.properties.length : 
@@ -397,6 +838,129 @@ export async function POST(
             };
 
             takeoffLines.push(takeoffLine);
+
+            // Foundation rebar calculations (if configured)
+            if (template.rebarConfig) {
+              const rebarConfig = template.rebarConfig;
+
+              // Main bars (bottom mat)
+              if (rebarConfig.mainBars?.diameter) {
+                const diameter = rebarConfig.mainBars.diameter;
+                const spacing = rebarConfig.mainBars.spacing || 0.15; // Default 150mm spacing
+
+                // Main bars in length direction
+                const mainBarsLength = calculateSlabMainBars(
+                  diameter,
+                  spacing,
+                  length, // bar length
+                  1, // single footing
+                  settings.waste.rebar
+                );
+
+                const dpwhMainItem = rebarConfig.dpwhRebarItem || getDPWHRebarItem(diameter, false);
+
+                const mainTakeoffLine: TakeoffLine = {
+                  id: `tof_${instance.id}_rebar_main`,
+                  sourceElementId: instance.id,
+                  trade: 'Rebar',
+                  resourceKey: `rebar-${diameter}mm`,
+                  quantity: Math.round(mainBarsLength.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+                  unit: 'kg',
+                  formulaText: mainBarsLength.formulaText,
+                  inputsSnapshot: mainBarsLength.inputs,
+                  assumptions: [
+                    `Lap: ${calculateLapLength(diameter).toFixed(2)}m`,
+                    `Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`,
+                    `DPWH Item: ${dpwhMainItem}`,
+                    `Grade: ${getRebarGrade(diameter)}`,
+                  ],
+                  tags: [
+                    `type:foundation`,
+                    `subtype:footing`,
+                    `template:${template.name}`,
+                    `level:${level.label}`,
+                    `rebar:main`,
+                    `dpwh:${dpwhMainItem}`,
+                    ...(instance.tags || []),
+                  ],
+                  calculatedAt: new Date(),
+                };
+
+                takeoffLines.push(mainTakeoffLine);
+              }
+
+              // Secondary bars (top mat - perpendicular direction)
+              if (rebarConfig.secondaryBars?.diameter) {
+                const diameter = rebarConfig.secondaryBars.diameter;
+                const spacing = rebarConfig.secondaryBars.spacing || 0.15; // Default 150mm spacing
+
+                const secondaryBarsWidth = calculateSlabMainBars(
+                  diameter,
+                  spacing,
+                  width, // bar length in perpendicular direction
+                  1, // single footing
+                  settings.waste.rebar
+                );
+
+                const dpwhSecondaryItem = rebarConfig.dpwhRebarItem || getDPWHRebarItem(diameter, false);
+
+                const secondaryTakeoffLine: TakeoffLine = {
+                  id: `tof_${instance.id}_rebar_secondary`,
+                  sourceElementId: instance.id,
+                  trade: 'Rebar',
+                  resourceKey: `rebar-${diameter}mm`,
+                  quantity: Math.round(secondaryBarsWidth.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+                  unit: 'kg',
+                  formulaText: secondaryBarsWidth.formulaText,
+                  inputsSnapshot: secondaryBarsWidth.inputs,
+                  assumptions: [
+                    `Lap: ${calculateLapLength(diameter).toFixed(2)}m`,
+                    `Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`,
+                    `DPWH Item: ${dpwhSecondaryItem}`,
+                    `Grade: ${getRebarGrade(diameter)}`,
+                  ],
+                  tags: [
+                    `type:foundation`,
+                    `subtype:footing`,
+                    `template:${template.name}`,
+                    `level:${level.label}`,
+                    `rebar:secondary`,
+                    `dpwh:${dpwhSecondaryItem}`,
+                    ...(instance.tags || []),
+                  ],
+                  calculatedAt: new Date(),
+                };
+
+                takeoffLines.push(secondaryTakeoffLine);
+              }
+
+              // Footing formwork (all 4 sides)
+              const footingFormworkResult = calculateFootingFormwork(length, width, depth);
+              
+              const footingFormworkLine: TakeoffLine = {
+                id: `tof_${instance.id}_formwork`,
+                sourceElementId: instance.id,
+                trade: 'Formwork',
+                resourceKey: 'formwork-footing',
+                quantity: roundArea(footingFormworkResult.area, settings.rounding.formwork || 2),
+                unit: 'm²',
+                formulaText: footingFormworkResult.formulaText,
+                inputsSnapshot: footingFormworkResult.inputs,
+                assumptions: [
+                  'All 4 vertical sides (bottom in contact with soil)',
+                ],
+                tags: [
+                  `type:foundation`,
+                  `subtype:footing`,
+                  `template:${template.name}`,
+                  `level:${level.label}`,
+                  ...(instance.tags || []),
+                ],
+                calculatedAt: new Date(),
+              };
+
+              takeoffLines.push(footingFormworkLine);
+            }
           }
         }
       } catch (error) {
@@ -405,12 +969,21 @@ export async function POST(
     }
 
     // Calculate summary
-    const totalConcrete = takeoffLines.reduce((sum, line) => sum + line.quantity, 0);
+    const concreteLines = takeoffLines.filter(line => line.trade === 'Concrete');
+    const rebarLines = takeoffLines.filter(line => line.trade === 'Rebar');
+    const formworkLines = takeoffLines.filter(line => line.trade === 'Formwork');
+    
+    const totalConcrete = concreteLines.reduce((sum, line) => sum + line.quantity, 0);
+    const totalRebar = rebarLines.reduce((sum, line) => sum + line.quantity, 0);
+    const totalFormwork = formworkLines.reduce((sum, line) => sum + line.quantity, 0);
 
     const summary = {
       totalConcrete: roundVolume(totalConcrete, settings.rounding.concrete),
+      totalRebar: Math.round(totalRebar * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+      totalFormwork: roundArea(totalFormwork, settings.rounding.formwork || 2),
       elementCount: instances.length,
       takeoffLineCount: takeoffLines.length,
+      boqLineCount: 0, // Will be updated when BOQ is generated
     };
 
     // Save as CalcRun

@@ -11,7 +11,11 @@ interface BOQViewerProps {
 interface BOQSummary {
   totalLines: number;
   totalQuantity: number;
-  trades: Record<string, number>;
+  trades: {
+    Concrete: number;
+    Rebar: number;
+    Formwork: number;
+  };
 }
 
 interface CalcRun {
@@ -50,11 +54,20 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
         const data: CalcRun = await res.json();
         if (data.boqLines && data.boqLines.length > 0) {
           setBoqLines(data.boqLines);
-          const totalQuantity = data.boqLines.reduce((sum, line) => sum + line.quantity, 0);
+          const concreteLines = data.boqLines.filter(line => line.tags.some(tag => tag === 'trade:Concrete'));
+          const rebarLines = data.boqLines.filter(line => line.tags.some(tag => tag === 'trade:Rebar'));
+          const formworkLines = data.boqLines.filter(line => line.tags.some(tag => tag === 'trade:Formwork'));
+          const totalConcreteQty = concreteLines.reduce((sum, line) => sum + line.quantity, 0);
+          const totalRebarQty = rebarLines.reduce((sum, line) => sum + line.quantity, 0);
+          const totalFormworkQty = formworkLines.reduce((sum, line) => sum + line.quantity, 0);
           setSummary({
             totalLines: data.summary.boqLineCount || 0,
-            totalQuantity,
-            trades: { Concrete: totalQuantity },
+            totalQuantity: totalConcreteQty + totalRebarQty + totalFormworkQty,
+            trades: { 
+              Concrete: totalConcreteQty,
+              Rebar: totalRebarQty,
+              Formwork: totalFormworkQty,
+            },
           });
           setLastCalculated(data.timestamp);
           setHasBoq(true);
@@ -123,7 +136,7 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
           <div>
             <h3 className="text-lg font-semibold mb-2">Bill of Quantities (BOQ)</h3>
             <p className="text-sm text-gray-600">
-              Map concrete takeoff to DPWH pay items
+              Map concrete and rebar takeoff to DPWH pay items
             </p>
             {lastCalculated && (
               <p className="text-xs text-gray-500 mt-1">
@@ -170,11 +183,23 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
       {summary && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-6">
           <h4 className="font-semibold text-green-900 mb-4">BOQ Summary</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
-              <div className="text-sm text-green-700">Total Concrete</div>
-              <div className="text-2xl font-bold text-green-900">
-                {summary.totalQuantity.toFixed(3)} cu.m
+              <div className="text-sm text-blue-700">Total Concrete</div>
+              <div className="text-2xl font-bold text-blue-900">
+                {summary.trades.Concrete?.toFixed(3) || '0.000'} m³
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-orange-700">Total Rebar</div>
+              <div className="text-2xl font-bold text-orange-900">
+                {summary.trades.Rebar?.toFixed(2) || '0.00'} kg
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-purple-700">Total Formwork</div>
+              <div className="text-2xl font-bold text-purple-900">
+                {summary.trades.Formwork?.toFixed(2) || '0.00'} m²
               </div>
             </div>
             <div>
@@ -184,7 +209,7 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
             <div>
               <div className="text-sm text-green-700">Trades</div>
               <div className="text-2xl font-bold text-green-900">
-                {Object.keys(summary.trades).length}
+                {Object.keys(summary.trades).filter(t => summary.trades[t as keyof typeof summary.trades] > 0).length}
               </div>
             </div>
           </div>
@@ -214,18 +239,32 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
                 {boqLines.map((line) => {
                   const isExpanded = expandedLines.has(line.id);
                   const sourceLines = getSourceTakeoffLines(line.sourceTakeoffLineIds);
+                  const isConcrete = line.tags.some(tag => tag === 'trade:Concrete');
+                  const isRebar = line.tags.some(tag => tag === 'trade:Rebar');
+                  const isFormwork = line.tags.some(tag => tag === 'trade:Formwork');
 
                   return (
                     <React.Fragment key={line.id}>
-                      <tr className="hover:bg-gray-50">
+                      <tr className={`hover:bg-gray-50 ${isConcrete ? 'bg-blue-50/30' : isRebar ? 'bg-orange-50/30' : isFormwork ? 'bg-purple-50/30' : ''}`}>
                         <td className="px-4 py-3 text-sm font-mono text-blue-600">
                           {line.dpwhItemNumberRaw}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {line.description}
+                          <div className="flex items-center gap-2">
+                            <span>{line.description}</span>
+                            {isConcrete && (
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">Concrete</span>
+                            )}
+                            {isRebar && (
+                              <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full">Rebar</span>
+                            )}
+                            {isFormwork && (
+                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">Formwork</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
-                          {line.quantity.toFixed(3)}
+                          {line.unit === 'kg' ? line.quantity.toFixed(2) : line.quantity.toFixed(3)}
                         </td>
                         <td className="px-4 py-3 text-sm text-center text-gray-600">
                           {line.unit}

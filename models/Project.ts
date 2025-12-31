@@ -41,11 +41,17 @@ const ElementTemplateSchema = new Schema<ElementTemplate>({
     mainBars: {
       count: Number,
       diameter: Number,
+      spacing: Number,
     },
     stirrups: {
       diameter: Number,
       spacing: Number,
     },
+    secondaryBars: {
+      diameter: Number,
+      spacing: Number,
+    },
+    dpwhRebarItem: String,
   },
 });
 
