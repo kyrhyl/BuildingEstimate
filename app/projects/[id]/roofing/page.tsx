@@ -1,580 +1,461 @@
 'use client';
 
 /**
- * Roofing Management Page
- * UI for managing roof types and roof planes (Mode B)
+ * Parametric Roofing Management Page
+ * Simple, intuitive roof configuration using parameters
  */
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { generateParametricRoof, type RoofParameters, type RoofStyle, type PitchFormat, type ParametricRoofResult } from '@/lib/math/roofing/parametric';
 
 interface RoofType {
   id: string;
   name: string;
   dpwhItemNumberRaw: string;
   unit: string;
-  areaBasis: 'slopeArea' | 'planArea';
-  lapAllowancePercent: number;
-  wastePercent: number;
 }
 
-interface RoofPlane {
-  id: string;
+interface RoofConfiguration {
+  id?: string;
   name: string;
-  levelId: string;
-  boundary: {
-    type: 'gridRect' | 'polygon';
-    data: any;
-  };
-  slope: {
-    mode: 'ratio' | 'degrees';
-    value: number;
-  };
+  params: RoofParameters;
   roofTypeId: string;
-  computed: {
-    planArea_m2: number;
-    slopeFactor: number;
-    slopeArea_m2: number;
-  };
+  generated?: ParametricRoofResult;
 }
 
-export default function RoofingPage() {
+export default function ParametricRoofingPage() {
   const params = useParams();
+  const router = useRouter();
   const projectId = params.id as string;
 
-  const [activeTab, setActiveTab] = useState<'types' | 'planes'>('types');
   const [roofTypes, setRoofTypes] = useState<RoofType[]>([]);
-  const [roofPlanes, setRoofPlanes] = useState<RoofPlane[]>([]);
-  const [levels, setLevels] = useState<{ label: string }[]>([]);
-  const [gridX, setGridX] = useState<{ label: string }[]>([]);
-  const [gridY, setGridY] = useState<{ label: string }[]>([]);
-  const [catalogResults, setCatalogResults] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Roof Type Form State
-  const [typeForm, setTypeForm] = useState({
-    name: '',
-    dpwhItemNumberRaw: '',
-    unit: '',
-    areaBasis: 'slopeArea' as 'slopeArea' | 'planArea',
-    lapAllowancePercent: 0.10,
-    wastePercent: 0.05,
-  });
-
-  // Roof Plane Form State
-  const [planeForm, setPlaneForm] = useState({
-    name: '',
-    levelId: '',
-    boundaryType: 'gridRect' as 'gridRect' | 'polygon',
-    gridXStart: '',
-    gridXEnd: '',
-    gridYStart: '',
-    gridYEnd: '',
-    slopeMode: 'ratio' as 'ratio' | 'degrees',
-    slopeValue: 0.25,
+  const [config, setConfig] = useState<RoofConfiguration>({
+    name: 'Main Roof',
+    params: {
+      style: 'gable',
+      length_m: 10,
+      width_m: 8,
+      pitchFormat: 'rise-run',
+      pitchRise: 4,
+      pitchRun: 12,
+      overhang_m: 0.6,
+    },
     roofTypeId: '',
   });
+  
+  const [preview, setPreview] = useState<ParametricRoofResult | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchProject();
-    fetchRoofTypes();
-    fetchRoofPlanes();
+    loadData();
   }, [projectId]);
 
-  const fetchProject = async () => {
-    const res = await fetch(`/api/projects/${projectId}`);
-    if (res.ok) {
+  useEffect(() => {
+    // Auto-generate preview when params change
+    try {
+      const result = generateParametricRoof(config.params);
+      setPreview(result);
+    } catch (error) {
+      console.error('Error generating roof:', error);
+      setPreview(null);
+    }
+  }, [config.params]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/roof-types`);
       const data = await res.json();
-      setLevels(data.data.levels || []);
-      setGridX(data.data.gridX || []);
-      setGridY(data.data.gridY || []);
+      setRoofTypes(data.roofTypes || []);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchRoofTypes = async () => {
-    const res = await fetch(`/api/projects/${projectId}/roof-types`);
-    if (res.ok) {
-      const data = await res.json();
-      setRoofTypes(data.roofTypes);
-    }
+  const handleSave = async () => {
+    // TODO: Save configuration to project
+    alert('Roof configuration saved! (Implementation pending)');
   };
 
-  const fetchRoofPlanes = async () => {
-    const res = await fetch(`/api/projects/${projectId}/roof-planes`);
-    if (res.ok) {
-      const data = await res.json();
-      setRoofPlanes(data.roofPlanes);
-    }
-  };
-
-  const searchCatalog = async (query: string) => {
-    if (!query) {
-      setCatalogResults([]);
-      return;
-    }
-    const res = await fetch(`/api/catalog?query=${encodeURIComponent(query)}&trade=Roofing&limit=20`);
-    if (res.ok) {
-      const data = await res.json();
-      setCatalogResults(data.results || []);
-    }
-  };
-
-  const handleCreateRoofType = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const res = await fetch(`/api/projects/${projectId}/roof-types`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(typeForm),
-    });
-    if (res.ok) {
-      fetchRoofTypes();
-      setTypeForm({
-        name: '',
-        dpwhItemNumberRaw: '',
-        unit: '',
-        areaBasis: 'slopeArea',
-        lapAllowancePercent: 0.10,
-        wastePercent: 0.05,
-      });
-      setCatalogResults([]);
-      setSearchQuery('');
-    } else {
-      const error = await res.json();
-      alert(`Error: ${error.error}`);
-    }
-  };
-
-  const handleDeleteRoofType = async (id: string) => {
-    if (!confirm('Delete this roof type?')) return;
-    const res = await fetch(`/api/projects/${projectId}/roof-types?roofTypeId=${id}`, {
-      method: 'DELETE',
-    });
-    if (res.ok) fetchRoofTypes();
-  };
-
-  const handleCreateRoofPlane = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const boundary = {
-      type: planeForm.boundaryType,
-      data:
-        planeForm.boundaryType === 'gridRect'
-          ? {
-              gridX: [planeForm.gridXStart, planeForm.gridXEnd],
-              gridY: [planeForm.gridYStart, planeForm.gridYEnd],
-            }
-          : { points: [] },
-    };
-
-    const payload = {
-      name: planeForm.name,
-      levelId: planeForm.levelId,
-      boundary,
-      slope: {
-        mode: planeForm.slopeMode,
-        value: planeForm.slopeValue,
-      },
-      roofTypeId: planeForm.roofTypeId,
-      tags: [],
-    };
-
-    const res = await fetch(`/api/projects/${projectId}/roof-planes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    if (res.ok) {
-      fetchRoofPlanes();
-      setPlaneForm({
-        name: '',
-        levelId: '',
-        boundaryType: 'gridRect',
-        gridXStart: '',
-        gridXEnd: '',
-        gridYStart: '',
-        gridYEnd: '',
-        slopeMode: 'ratio',
-        slopeValue: 0.25,
-        roofTypeId: '',
-      });
-    } else {
-      const error = await res.json();
-      alert(`Error: ${error.error}`);
-    }
-  };
-
-  const handleDeleteRoofPlane = async (id: string) => {
-    if (!confirm('Delete this roof plane?')) return;
-    const res = await fetch(`/api/projects/${projectId}/roof-planes?roofPlaneId=${id}`, {
-      method: 'DELETE',
-    });
-    if (res.ok) fetchRoofPlanes();
-  };
-
-  const selectCatalogItem = (item: any) => {
-    setTypeForm({
-      ...typeForm,
-      dpwhItemNumberRaw: item.itemNumber,
-      unit: item.unit,
-    });
-    setCatalogResults([]);
-    setSearchQuery('');
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-12">Loading...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Roofing Management (Mode B)</h1>
-
-      {/* Tabs */}
-      <div className="flex gap-4 mb-6 border-b">
-        <button
-          onClick={() => setActiveTab('types')}
-          className={`px-4 py-2 font-medium ${activeTab === 'types' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
-        >
-          Roof Types
-        </button>
-        <button
-          onClick={() => setActiveTab('planes')}
-          className={`px-4 py-2 font-medium ${activeTab === 'planes' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
-        >
-          Roof Planes
-        </button>
-      </div>
-
-      {/* Tab: Roof Types */}
-      {activeTab === 'types' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Create Roof Type Template</h2>
-            <form onSubmit={handleCreateRoofType} className="space-y-4">
-              <div>
-                <label className="block font-medium mb-1">Name</label>
-                <input
-                  type="text"
-                  value={typeForm.name}
-                  onChange={e => setTypeForm({ ...typeForm, name: e.target.value })}
-                  className="border px-3 py-2 rounded w-full"
-                  required
-                />
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={() => router.push(`/projects/${projectId}`)}
+            className="text-sm text-gray-600 hover:text-gray-900 mb-2 flex items-center gap-1"
+          >
+            ← Back to Project
+          </button>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded">
+                  PART E - MODE B
+                </span>
+                <span className="text-xs text-gray-500">Parametric Roof Configuration</span>
               </div>
-
-              <div>
-                <label className="block font-medium mb-1">Search DPWH Catalog (Roofing)</label>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => {
-                    setSearchQuery(e.target.value);
-                    searchCatalog(e.target.value);
-                  }}
-                  placeholder="e.g., corrugated, metal sheet, clay tile"
-                  className="border px-3 py-2 rounded w-full"
-                />
-                {catalogResults.length > 0 && (
-                  <ul className="border mt-1 rounded max-h-48 overflow-auto bg-white">
-                    {catalogResults.map((item, idx) => (
-                      <li
-                        key={idx}
-                        onClick={() => selectCatalogItem(item)}
-                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
-                      >
-                        <strong>{item.itemNumber}</strong>: {item.description} ({item.unit})
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-medium mb-1">DPWH Item Number</label>
-                  <input
-                    type="text"
-                    value={typeForm.dpwhItemNumberRaw}
-                    onChange={e => setTypeForm({ ...typeForm, dpwhItemNumberRaw: e.target.value })}
-                    className="border px-3 py-2 rounded w-full"
-                    required
-                    readOnly
-                  />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Unit</label>
-                  <input
-                    type="text"
-                    value={typeForm.unit}
-                    onChange={e => setTypeForm({ ...typeForm, unit: e.target.value })}
-                    className="border px-3 py-2 rounded w-full"
-                    required
-                    readOnly
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block font-medium mb-1">Area Basis</label>
-                  <select
-                    value={typeForm.areaBasis}
-                    onChange={e => setTypeForm({ ...typeForm, areaBasis: e.target.value as any })}
-                    className="border px-3 py-2 rounded w-full"
-                  >
-                    <option value="slopeArea">Slope Area</option>
-                    <option value="planArea">Plan Area</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Lap Allowance (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={typeForm.lapAllowancePercent * 100}
-                    onChange={e => setTypeForm({ ...typeForm, lapAllowancePercent: parseFloat(e.target.value) / 100 })}
-                    className="border px-3 py-2 rounded w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Waste (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={typeForm.wastePercent * 100}
-                    onChange={e => setTypeForm({ ...typeForm, wastePercent: parseFloat(e.target.value) / 100 })}
-                    className="border px-3 py-2 rounded w-full"
-                  />
-                </div>
-              </div>
-
-              <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
-                Create Roof Type
-              </button>
-            </form>
-          </div>
-
-          {/* Roof Types Table */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Roof Types ({roofTypes.length})</h2>
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border px-4 py-2 text-left">Name</th>
-                  <th className="border px-4 py-2 text-left">DPWH Item</th>
-                  <th className="border px-4 py-2 text-left">Unit</th>
-                  <th className="border px-4 py-2 text-left">Area Basis</th>
-                  <th className="border px-4 py-2 text-left">Lap %</th>
-                  <th className="border px-4 py-2 text-left">Waste %</th>
-                  <th className="border px-4 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roofTypes.map(rt => (
-                  <tr key={rt.id} className="hover:bg-gray-50">
-                    <td className="border px-4 py-2">{rt.name}</td>
-                    <td className="border px-4 py-2">{rt.dpwhItemNumberRaw}</td>
-                    <td className="border px-4 py-2">{rt.unit}</td>
-                    <td className="border px-4 py-2">{rt.areaBasis}</td>
-                    <td className="border px-4 py-2">{(rt.lapAllowancePercent * 100).toFixed(1)}%</td>
-                    <td className="border px-4 py-2">{(rt.wastePercent * 100).toFixed(1)}%</td>
-                    <td className="border px-4 py-2 text-center">
-                      <button
-                        onClick={() => handleDeleteRoofType(rt.id)}
-                        className="text-red-600 hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              <h1 className="text-3xl font-bold text-gray-900">Roofing System</h1>
+              <p className="text-gray-600 mt-2">
+                Configure your roof with simple parameters - we'll calculate the geometry
+              </p>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Tab: Roof Planes */}
-      {activeTab === 'planes' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Create Roof Plane</h2>
-            <form onSubmit={handleCreateRoofPlane} className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left: Configuration Form */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold mb-6">Roof Configuration</h2>
+            
+            <div className="space-y-6">
+              {/* Roof Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Roof Name
+                </label>
+                <input
+                  type="text"
+                  value={config.name}
+                  onChange={(e) => setConfig({ ...config, name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="e.g., Main Roof, Garage Roof"
+                />
+              </div>
+
+              {/* Roof Style */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Roof Style
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {(['gable', 'hip', 'flat', 'gambrel'] as RoofStyle[]).map((style) => (
+                    <button
+                      key={style}
+                      onClick={() => setConfig({
+                        ...config,
+                        params: { ...config.params, style }
+                      })}
+                      className={`px-4 py-3 rounded-lg border-2 font-medium text-sm transition-all ${
+                        config.params.style === style
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                      }`}
+                    >
+                      <div className="text-center">
+                        {style === 'gable' && '⌂'}
+                        {style === 'hip' && '⛰️'}
+                        {style === 'flat' && '▭'}
+                        {style === 'gambrel' && '⌂⌂'}
+                        <div className="mt-1 capitalize">{style}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Building Dimensions */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-medium mb-1">Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Length (m)
+                  </label>
                   <input
-                    type="text"
-                    value={planeForm.name}
-                    onChange={e => setPlaneForm({ ...planeForm, name: e.target.value })}
-                    className="border px-3 py-2 rounded w-full"
-                    required
+                    type="number"
+                    step="0.1"
+                    value={config.params.length_m}
+                    onChange={(e) => setConfig({
+                      ...config,
+                      params: { ...config.params, length_m: parseFloat(e.target.value) || 0 }
+                    })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block font-medium mb-1">Level</label>
-                  <select
-                    value={planeForm.levelId}
-                    onChange={e => setPlaneForm({ ...planeForm, levelId: e.target.value })}
-                    className="border px-3 py-2 rounded w-full"
-                    required
-                  >
-                    <option value="">Select Level</option>
-                    {levels.map(level => (
-                      <option key={level.label} value={level.label}>
-                        {level.label}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Width (m)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={config.params.width_m}
+                    onChange={(e) => setConfig({
+                      ...config,
+                      params: { ...config.params, width_m: parseFloat(e.target.value) || 0 }
+                    })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
                 </div>
               </div>
 
+              {/* Pitch Format Selector */}
               <div>
-                <label className="block font-medium mb-1">Boundary (Grid Rectangle)</label>
-                <div className="grid grid-cols-4 gap-2">
-                  <select
-                    value={planeForm.gridXStart}
-                    onChange={e => setPlaneForm({ ...planeForm, gridXStart: e.target.value })}
-                    className="border px-3 py-2 rounded"
-                    required
-                  >
-                    <option value="">X Start</option>
-                    {gridX.map(g => (
-                      <option key={g.label} value={g.label}>
-                        {g.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={planeForm.gridXEnd}
-                    onChange={e => setPlaneForm({ ...planeForm, gridXEnd: e.target.value })}
-                    className="border px-3 py-2 rounded"
-                    required
-                  >
-                    <option value="">X End</option>
-                    {gridX.map(g => (
-                      <option key={g.label} value={g.label}>
-                        {g.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={planeForm.gridYStart}
-                    onChange={e => setPlaneForm({ ...planeForm, gridYStart: e.target.value })}
-                    className="border px-3 py-2 rounded"
-                    required
-                  >
-                    <option value="">Y Start</option>
-                    {gridY.map(g => (
-                      <option key={g.label} value={g.label}>
-                        {g.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={planeForm.gridYEnd}
-                    onChange={e => setPlaneForm({ ...planeForm, gridYEnd: e.target.value })}
-                    className="border px-3 py-2 rounded"
-                    required
-                  >
-                    <option value="">Y End</option>
-                    {gridY.map(g => (
-                      <option key={g.label} value={g.label}>
-                        {g.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Pitch Format
+                </label>
+                <select
+                  value={config.params.pitchFormat}
+                  onChange={(e) => setConfig({
+                    ...config,
+                    params: { 
+                      ...config.params, 
+                      pitchFormat: e.target.value as PitchFormat,
+                      // Reset pitch values
+                      pitchRatio: undefined,
+                      pitchDegrees: undefined,
+                      pitchRise: e.target.value === 'rise-run' ? 4 : undefined,
+                      pitchRun: e.target.value === 'rise-run' ? 12 : undefined,
+                    }
+                  })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="rise-run">Rise:Run (e.g., 4:12)</option>
+                  <option value="degrees">Degrees (e.g., 18.4°)</option>
+                  <option value="ratio">Ratio (e.g., 25%)</option>
+                </select>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block font-medium mb-1">Slope Mode</label>
-                  <select
-                    value={planeForm.slopeMode}
-                    onChange={e => setPlaneForm({ ...planeForm, slopeMode: e.target.value as any })}
-                    className="border px-3 py-2 rounded w-full"
-                  >
-                    <option value="ratio">Ratio (rise/run)</option>
-                    <option value="degrees">Degrees</option>
-                  </select>
+              {/* Pitch Input */}
+              {config.params.pitchFormat === 'rise-run' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Rise
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={config.params.pitchRise || 4}
+                      onChange={(e) => setConfig({
+                        ...config,
+                        params: { ...config.params, pitchRise: parseFloat(e.target.value) || 4 }
+                      })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Run
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={config.params.pitchRun || 12}
+                      onChange={(e) => setConfig({
+                        ...config,
+                        params: { ...config.params, pitchRun: parseFloat(e.target.value) || 12 }
+                      })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
                 </div>
+              )}
+
+              {config.params.pitchFormat === 'degrees' && (
                 <div>
-                  <label className="block font-medium mb-1">
-                    Slope Value {planeForm.slopeMode === 'ratio' ? '(e.g., 0.25 for 1:4)' : '(degrees)'}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Slope Angle (degrees)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={config.params.pitchDegrees || 18}
+                    onChange={(e) => setConfig({
+                      ...config,
+                      params: { ...config.params, pitchDegrees: parseFloat(e.target.value) || 18 }
+                    })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              )}
+
+              {config.params.pitchFormat === 'ratio' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Slope Ratio (0.0 - 1.0)
                   </label>
                   <input
                     type="number"
                     step="0.01"
-                    value={planeForm.slopeValue}
-                    onChange={e => setPlaneForm({ ...planeForm, slopeValue: parseFloat(e.target.value) })}
-                    className="border px-3 py-2 rounded w-full"
-                    required
+                    min="0"
+                    max="1"
+                    value={config.params.pitchRatio || 0.25}
+                    onChange={(e) => setConfig({
+                      ...config,
+                      params: { ...config.params, pitchRatio: parseFloat(e.target.value) || 0.25 }
+                    })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
-                <div>
-                  <label className="block font-medium mb-1">Roof Type</label>
-                  <select
-                    value={planeForm.roofTypeId}
-                    onChange={e => setPlaneForm({ ...planeForm, roofTypeId: e.target.value })}
-                    className="border px-3 py-2 rounded w-full"
-                    required
-                  >
-                    <option value="">Select Roof Type</option>
-                    {roofTypes.map(rt => (
-                      <option key={rt.id} value={rt.id}>
-                        {rt.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              )}
+
+              {/* Overhang */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Eave Overhang (m)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={config.params.overhang_m || 0}
+                  onChange={(e) => setConfig({
+                    ...config,
+                    params: { ...config.params, overhang_m: parseFloat(e.target.value) || 0 }
+                  })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
               </div>
 
-              <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
-                Create Roof Plane
+              {/* Roof Type/Material */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Roofing Material
+                </label>
+                <select
+                  value={config.roofTypeId}
+                  onChange={(e) => setConfig({ ...config, roofTypeId: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select Material</option>
+                  {roofTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name} ({type.dpwhItemNumberRaw})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={handleSave}
+                disabled={!config.roofTypeId}
+                className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save Roof Configuration
               </button>
-            </form>
+            </div>
           </div>
 
-          {/* Roof Planes Table */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Roof Planes ({roofPlanes.length})</h2>
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border px-4 py-2 text-left">Name</th>
-                  <th className="border px-4 py-2 text-left">Level</th>
-                  <th className="border px-4 py-2 text-left">Roof Type</th>
-                  <th className="border px-4 py-2 text-right">Plan Area (m²)</th>
-                  <th className="border px-4 py-2 text-right">Slope Factor</th>
-                  <th className="border px-4 py-2 text-right">Slope Area (m²)</th>
-                  <th className="border px-4 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roofPlanes.map(rp => {
-                  const roofType = roofTypes.find(rt => rt.id === rp.roofTypeId);
-                  return (
-                    <tr key={rp.id} className="hover:bg-gray-50">
-                      <td className="border px-4 py-2">{rp.name}</td>
-                      <td className="border px-4 py-2">{rp.levelId}</td>
-                      <td className="border px-4 py-2">{roofType?.name || 'N/A'}</td>
-                      <td className="border px-4 py-2 text-right">{rp.computed.planArea_m2.toFixed(2)}</td>
-                      <td className="border px-4 py-2 text-right">{rp.computed.slopeFactor.toFixed(3)}</td>
-                      <td className="border px-4 py-2 text-right">{rp.computed.slopeArea_m2.toFixed(2)}</td>
-                      <td className="border px-4 py-2 text-center">
-                        <button
-                          onClick={() => handleDeleteRoofPlane(rp.id)}
-                          className="text-red-600 hover:underline"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          {/* Right: Live Preview */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold mb-6">Generated Roof Geometry</h2>
+            
+            {preview ? (
+              <div className="space-y-6">
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <div className="text-sm text-blue-600 mb-1">Total Plan Area</div>
+                    <div className="text-2xl font-bold text-blue-900">
+                      {preview.summary.totalPlanArea_m2.toFixed(1)} m²
+                    </div>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <div className="text-sm text-green-600 mb-1">Total Slope Area</div>
+                    <div className="text-2xl font-bold text-green-900">
+                      {preview.summary.totalSlopeArea_m2.toFixed(1)} m²
+                    </div>
+                  </div>
+                </div>
+
+                {/* Metadata */}
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Style:</span>
+                    <span className="font-medium capitalize">{preview.style}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Dimensions:</span>
+                    <span className="font-medium">
+                      {preview.metadata.length_m}m × {preview.metadata.width_m}m
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Pitch:</span>
+                    <span className="font-medium">{preview.metadata.pitch}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Overhang:</span>
+                    <span className="font-medium">{preview.metadata.overhang_m}m</span>
+                  </div>
+                </div>
+
+                {/* Roof Planes */}
+                <div>
+                  <h3 className="font-semibold mb-3">Roof Planes ({preview.planes.length})</h3>
+                  <div className="space-y-3">
+                    {preview.planes.map((plane, idx) => (
+                      <div key={idx} className="border border-gray-200 rounded-lg p-4">
+                        <div className="font-medium mb-2">{plane.name}</div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-600">Plan Area:</span>
+                            <span className="ml-2 font-medium">{plane.planArea_m2.toFixed(1)} m²</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Slope Area:</span>
+                            <span className="ml-2 font-medium">{plane.area_m2.toFixed(1)} m²</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Angle:</span>
+                            <span className="ml-2 font-medium">{plane.slopeAngle_deg.toFixed(1)}°</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Factor:</span>
+                            <span className="ml-2 font-medium">{plane.slopeFactor.toFixed(3)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Lengths */}
+                <div>
+                  <h3 className="font-semibold mb-3">Linear Measurements</h3>
+                  <div className="space-y-2 text-sm">
+                    {preview.summary.ridgeLength_m > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Ridge Length:</span>
+                        <span className="font-medium">{preview.summary.ridgeLength_m.toFixed(1)} m</span>
+                      </div>
+                    )}
+                    {preview.summary.hipLength_m > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Hip Length:</span>
+                        <span className="font-medium">{preview.summary.hipLength_m.toFixed(1)} m</span>
+                      </div>
+                    )}
+                    {preview.summary.eaveLength_m > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Eave Length:</span>
+                        <span className="font-medium">{preview.summary.eaveLength_m.toFixed(1)} m</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                Configure roof parameters to see preview
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -10,6 +10,8 @@ import ElementInstancesEditor from '@/components/ElementInstancesEditor';
 import TakeoffViewer from '@/components/TakeoffViewer';
 import BOQViewer from '@/components/BOQViewer';
 import CalcRunHistory from '@/components/CalcRunHistory';
+import SpacesManager from '@/components/PartE/SpacesManager';
+import RoofingManager from '@/components/PartE/RoofingManager';
 
 interface ProjectDetailPageProps {
   params: Promise<{ id: string }>;
@@ -17,7 +19,7 @@ interface ProjectDetailPageProps {
 
 type DPWHPart = 'C' | 'D' | 'E' | 'F' | 'G';
 type GlobalView = 'takeoff' | 'boq';
-type Tab = 'overview' | 'grid' | 'levels' | 'templates' | 'instances' | 'history';
+type Tab = 'overview' | 'grid' | 'levels' | 'templates' | 'instances' | 'history' | 'spaces' | 'finishes' | 'roofing' | 'schedules';
 type SectionTab = 'parts' | 'reports';
 
 export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
@@ -283,26 +285,42 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                   Overview
                 </button>
                 <button
-                  onClick={() => router.push(`/projects/${resolvedId}/spaces`)}
-                  className="py-2 px-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm whitespace-nowrap"
+                  onClick={() => setActiveTab('spaces')}
+                  className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
+                    activeTab === 'spaces'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
                 >
                   Spaces (Mode A)
                 </button>
                 <button
-                  onClick={() => router.push(`/projects/${resolvedId}/finishes`)}
-                  className="py-2 px-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm whitespace-nowrap"
+                  onClick={() => setActiveTab('finishes')}
+                  className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
+                    activeTab === 'finishes'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
                 >
                   Finishes (Mode A)
                 </button>
                 <button
-                  onClick={() => router.push(`/projects/${resolvedId}/roofing`)}
-                  className="py-2 px-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm whitespace-nowrap"
+                  onClick={() => setActiveTab('roofing')}
+                  className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
+                    activeTab === 'roofing'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
                 >
                   Roofing (Mode B)
                 </button>
                 <button
-                  onClick={() => router.push(`/projects/${resolvedId}/schedules`)}
-                  className="py-2 px-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm whitespace-nowrap"
+                  onClick={() => setActiveTab('schedules')}
+                  className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
+                    activeTab === 'schedules'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
                 >
                   Schedules (Mode C)
                 </button>
@@ -483,13 +501,13 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                     </p>
                     <div className="space-y-2">
                       <button
-                        onClick={() => router.push(`/projects/${resolvedId}/spaces`)}
+                        onClick={() => setActiveTab('spaces')}
                         className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded text-sm"
                       >
                         Manage Spaces →
                       </button>
                       <button
-                        onClick={() => router.push(`/projects/${resolvedId}/finishes`)}
+                        onClick={() => setActiveTab('finishes')}
                         className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded text-sm"
                       >
                         Assign Finishes →
@@ -508,7 +526,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                     </p>
                     <div className="space-y-2">
                       <button
-                        onClick={() => router.push(`/projects/${resolvedId}/roofing`)}
+                        onClick={() => setActiveTab('roofing')}
                         className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded text-sm"
                       >
                         Manage Roofing →
@@ -531,7 +549,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                     </p>
                     <div className="space-y-2">
                       <button
-                        onClick={() => router.push(`/projects/${resolvedId}/schedules`)}
+                        onClick={() => setActiveTab('schedules')}
                         className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded text-sm"
                       >
                         Manage Schedule Items →
@@ -570,6 +588,39 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Spaces Tab */}
+            {activeTab === 'spaces' && resolvedId && (
+              <SpacesManager
+                projectId={resolvedId}
+                levels={project.levels || []}
+                gridX={project.gridX || []}
+                gridY={project.gridY || []}
+              />
+            )}
+
+            {/* Finishes Tab */}
+            {activeTab === 'finishes' && (
+              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+                <div className="text-gray-400 text-5xl mb-4">🎨</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Finishes Management</h3>
+                <p className="text-gray-600">Coming soon - Assign floor, wall, and ceiling finishes to spaces</p>
+              </div>
+            )}
+
+            {/* Roofing Tab */}
+            {activeTab === 'roofing' && resolvedId && (
+              <RoofingManager projectId={resolvedId} />
+            )}
+
+            {/* Schedules Tab */}
+            {activeTab === 'schedules' && (
+              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+                <div className="text-gray-400 text-5xl mb-4">📋</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Schedules Management</h3>
+                <p className="text-gray-600">Coming soon - Manage doors, windows, and hardware schedules</p>
               </div>
             )}
           </>

@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import type { Space, Level, GridLine, GridRectBoundary } from '@/types';
 
 export default function SpacesPage() {
   const params = useParams();
+  const router = useRouter();
   const projectId = params.id as string;
 
   const [spaces, setSpaces] = useState<Space[]>([]);
@@ -39,9 +40,9 @@ export default function SpacesPage() {
       const projectRes = await fetch(`/api/projects/${projectId}`);
       const projectData = await projectRes.json();
       
-      setLevels(projectData.project.levels || []);
-      setGridX(projectData.project.gridX || []);
-      setGridY(projectData.project.gridY || []);
+      setLevels(projectData.data.levels || []);
+      setGridX(projectData.data.gridX || []);
+      setGridY(projectData.data.gridY || []);
 
       // Load spaces
       const spacesRes = await fetch(`/api/projects/${projectId}/spaces`);
@@ -149,62 +150,126 @@ export default function SpacesPage() {
   };
 
   if (loading) {
-    return <div className="p-8">Loading spaces...</div>;
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-12">Loading spaces...</div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Spaces</h1>
-        <button
-          onClick={() => {
-            setShowCreateForm(true);
-            setEditingSpace(null);
-            resetForm();
-          }}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          + New Space
-        </button>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header with Breadcrumb */}
+        <div className="mb-8">
+          <button
+            onClick={() => router.push(`/projects/${projectId}`)}
+            className="text-sm text-gray-600 hover:text-gray-900 mb-2 flex items-center gap-1"
+          >
+            ← Back to Project
+          </button>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded">
+                  PART E - MODE A
+                </span>
+                <span className="text-xs text-gray-500">Surface-Based Estimation</span>
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900">Space Management</h1>
+              <p className="text-gray-600 mt-2">
+                Define room boundaries and calculate floor, wall, and ceiling areas
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setShowCreateForm(true);
+                setEditingSpace(null);
+                resetForm();
+              }}
+              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 shadow-sm font-medium flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Space
+            </button>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+            <div className="text-sm text-gray-600 mb-1">Total Spaces</div>
+            <div className="text-2xl font-bold text-gray-900">{spaces.length}</div>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+            <div className="text-sm text-gray-600 mb-1">Total Floor Area</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {spaces.reduce((sum, s) => sum + s.computed.area_m2, 0).toLocaleString()} m²
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+            <div className="text-sm text-gray-600 mb-1">Grid Lines</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {gridX.length} × {gridY.length}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+            <div className="text-sm text-gray-600 mb-1">Levels</div>
+            <div className="text-2xl font-bold text-gray-900">{levels.length}</div>
+          </div>
+        </div>
 
       {/* Create/Edit Form */}
       {showCreateForm && (
-        <div className="mb-6 p-4 border border-gray-300 rounded bg-gray-50">
-          <h2 className="text-lg font-semibold mb-4">
-            {editingSpace ? 'Edit Space' : 'Create New Space'}
-          </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Space Name</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded"
-                required
-              />
-            </div>
+        <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {editingSpace ? '✏️ Edit Space' : '➕ Create New Space'}
+            </h2>
+          </div>
+          <form onSubmit={handleSubmit} className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Space Name *
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="e.g., Living Room, Bedroom 1"
+                  required
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Level</label>
-              <select
-                value={formData.levelId}
-                onChange={(e) => setFormData({ ...formData, levelId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded"
-                required
-              >
-                <option value="">Select Level</option>
-                {levels.map((level) => (
-                  <option key={level.label} value={level.label}>
-                    {level.label} ({level.elevation}m)
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Level *
+                </label>
+                <select
+                  value={formData.levelId}
+                  onChange={(e) => setFormData({ ...formData, levelId: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select Level</option>
+                  {levels.map((level) => (
+                    <option key={level.label} value={level.label}>
+                      {level.label} ({level.elevation}m)
                   </option>
                 ))}
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Boundary Type</label>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Boundary Type
+              </label>
               <select
                 value={formData.boundaryType}
                 onChange={(e) =>
@@ -213,24 +278,26 @@ export default function SpacesPage() {
                     boundaryType: e.target.value as 'gridRect' | 'polygon',
                   })
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               >
-                <option value="gridRect">Grid Rectangle</option>
+                <option value="gridRect">Grid Rectangle (Recommended)</option>
                 <option value="polygon" disabled>
-                  Polygon (Coming Soon)
+                  Polygon - Coming Soon
                 </option>
               </select>
             </div>
 
             {formData.boundaryType === 'gridRect' && (
-              <div className="grid grid-cols-2 gap-4">
+              <>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Grid X (Start - End)</label>
-                  <div className="flex gap-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Grid X Axis (Start → End) *
+                  </label>
+                  <div className="flex gap-2 items-center">
                     <select
                       value={formData.gridXStart}
                       onChange={(e) => setFormData({ ...formData, gridXStart: e.target.value })}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                       required
                     >
                       <option value="">Start</option>
@@ -240,11 +307,13 @@ export default function SpacesPage() {
                         </option>
                       ))}
                     </select>
-                    <span className="py-2">-</span>
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                     <select
                       value={formData.gridXEnd}
                       onChange={(e) => setFormData({ ...formData, gridXEnd: e.target.value })}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                       required
                     >
                       <option value="">End</option>
@@ -258,12 +327,14 @@ export default function SpacesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Grid Y (Start - End)</label>
-                  <div className="flex gap-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Grid Y Axis (Start → End) *
+                  </label>
+                  <div className="flex gap-2 items-center">
                     <select
                       value={formData.gridYStart}
                       onChange={(e) => setFormData({ ...formData, gridYStart: e.target.value })}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                       required
                     >
                       <option value="">Start</option>
@@ -273,11 +344,13 @@ export default function SpacesPage() {
                         </option>
                       ))}
                     </select>
-                    <span className="py-2">-</span>
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                     <select
                       value={formData.gridYEnd}
                       onChange={(e) => setFormData({ ...formData, gridYEnd: e.target.value })}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                       required
                     >
                       <option value="">End</option>
@@ -289,13 +362,14 @@ export default function SpacesPage() {
                     </select>
                   </div>
                 </div>
-              </div>
+              </>
             )}
+          </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-3 mt-6 pt-6 border-t border-gray-200">
               <button
                 type="submit"
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-sm"
               >
                 {editingSpace ? 'Update Space' : 'Create Space'}
               </button>
@@ -306,7 +380,7 @@ export default function SpacesPage() {
                   setEditingSpace(null);
                   resetForm();
                 }}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
               >
                 Cancel
               </button>
@@ -315,65 +389,107 @@ export default function SpacesPage() {
         </div>
       )}
 
-      {/* Spaces Table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white border border-gray-300">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-2 border-b text-left">Name</th>
-              <th className="px-4 py-2 border-b text-left">Level</th>
-              <th className="px-4 py-2 border-b text-right">Area (m²)</th>
-              <th className="px-4 py-2 border-b text-right">Perimeter (m)</th>
-              <th className="px-4 py-2 border-b text-left">Boundary</th>
-              <th className="px-4 py-2 border-b text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {spaces.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                  No spaces defined. Click "New Space" to create one.
-                </td>
-              </tr>
-            ) : (
-              spaces.map((space) => (
-                <tr key={space.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 border-b">{space.name}</td>
-                  <td className="px-4 py-2 border-b">{space.levelId}</td>
-                  <td className="px-4 py-2 border-b text-right">
-                    {space.computed.area_m2.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-2 border-b text-right">
-                    {space.computed.perimeter_m.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-2 border-b">
-                    {space.boundary.type === 'gridRect' && (
-                      <span className="text-sm text-gray-600">
-                        Grid: {(space.boundary.data as GridRectBoundary).gridX.join('-')} ×{' '}
-                        {(space.boundary.data as GridRectBoundary).gridY.join('-')}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 border-b text-center">
-                    <button
-                      onClick={() => handleEdit(space)}
-                      className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 mr-2"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(space.id)}
-                      className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
-                    >
-                      Delete
-                    </button>
-                  </td>
+      {/* Spaces Grid/Cards */}
+      {spaces.length === 0 && !showCreateForm ? (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No spaces defined yet</h3>
+          <p className="text-gray-600 mb-6">Get started by creating your first space</p>
+          <button
+            onClick={() => {
+              setShowCreateForm(true);
+              setEditingSpace(null);
+              resetForm();
+            }}
+            className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-sm inline-flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Create First Space
+          </button>
+        </div>
+      ) : spaces.length > 0 ? (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Space Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Level
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Area (m²)
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Perimeter (m)
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Boundary
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {spaces.map((space) => (
+                  <tr key={space.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{space.name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-600">{space.levelId}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <span className="text-sm font-semibold text-gray-900">
+                        {space.computed.area_m2.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <span className="text-sm text-gray-600">
+                        {space.computed.perimeter_m.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {space.boundary.type === 'gridRect' && (
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                          {(space.boundary.data as GridRectBoundary).gridX.join('-')} ×{' '}
+                          {(space.boundary.data as GridRectBoundary).gridY.join('-')}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <div className="flex justify-center gap-2">
+                        <button
+                          onClick={() => handleEdit(space)}
+                          className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(space.id)}
+                          className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 rounded hover:bg-red-100 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
     </div>
+  </div>
   );
 }
