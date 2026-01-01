@@ -31,7 +31,7 @@ export async function POST(
       );
     }
 
-    // Process concrete, rebar, and formwork takeoff lines
+    // Process concrete, rebar, formwork, finishes, roofing, and schedule items
     const concreteTakeoffLines = takeoffLines.filter(
       line => line.trade === 'Concrete'
     );
@@ -41,15 +41,26 @@ export async function POST(
     const formworkTakeoffLines = takeoffLines.filter(
       line => line.trade === 'Formwork'
     );
+    const finishesTakeoffLines = takeoffLines.filter(
+      line => line.trade === 'Finishes'
+    );
+    const roofingTakeoffLines = takeoffLines.filter(
+      line => line.trade === 'Roofing'
+    );
+    const scheduleItemsTakeoffLines = takeoffLines.filter(
+      line => line.trade !== 'Concrete' && line.trade !== 'Rebar' && 
+              line.trade !== 'Formwork' && line.trade !== 'Finishes' && line.trade !== 'Roofing'
+    );
 
-    if (concreteTakeoffLines.length === 0 && rebarTakeoffLines.length === 0 && formworkTakeoffLines.length === 0) {
+    if (concreteTakeoffLines.length === 0 && rebarTakeoffLines.length === 0 && formworkTakeoffLines.length === 0 && 
+        finishesTakeoffLines.length === 0 && roofingTakeoffLines.length === 0 && scheduleItemsTakeoffLines.length === 0) {
       return NextResponse.json({
         boqLines: [],
         summary: {
           totalLines: 0,
           trades: {},
         },
-        warnings: ['No concrete, rebar, or formwork takeoff lines to process'],
+        warnings: ['No takeoff lines to process'],
       });
     }
 
@@ -291,22 +302,216 @@ export async function POST(
       }
     }
 
+    // ===================================
+    // PROCESS FINISHES TAKEOFF LINES
+    // ===================================
+    const groupedFinishesByItem: Record<string, TakeoffLine[]> = {};
+    
+    for (const line of finishesTakeoffLines) {
+      // Extract DPWH item from tags
+      const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
+      const dpwhItemNumber = dpwhTag?.replace('dpwh:', '') || '';
+      
+      if (!dpwhItemNumber) {
+        warnings.push(`Finishes line ${line.id} missing DPWH item number`);
+        continue;
+      }
+      
+      if (!groupedFinishesByItem[dpwhItemNumber]) {
+        groupedFinishesByItem[dpwhItemNumber] = [];
+      }
+      
+      groupedFinishesByItem[dpwhItemNumber].push(line);
+    }
+
+    // Create BOQ lines for finishes
+    for (const [dpwhItemNumber, lines] of Object.entries(groupedFinishesByItem)) {
+      // Find item in catalog
+      const catalogItem = (catalog.items as DPWHCatalogItem[]).find(
+        item => item.itemNumber === dpwhItemNumber
+      );
+      
+      if (!catalogItem) {
+        errors.push(`Finishes DPWH item ${dpwhItemNumber} not found in catalog`);
+        continue;
+      }
+      
+      const totalQuantity = lines.reduce((sum, line) => sum + line.quantity, 0);
+      const sourceTakeoffLineIds = lines.map(line => line.id);
+      
+      // Collect all tags from source lines
+      const allTags = new Set<string>();
+      lines.forEach(line => line.tags.forEach(tag => allTags.add(tag)));
+      
+      // Count spaces and finish categories
+      const spaceCounts: Record<string, number> = {};
+      const categoryCounts: Record<string, number> = {};
+      lines.forEach(line => {
+        const spaceTag = line.tags.find(tag => tag.startsWith('spaceName:'));
+        const space = spaceTag?.replace('spaceName:', '') || 'unknown';
+        spaceCounts[space] = (spaceCounts[space] || 0) + 1;
+        
+        const categoryTag = line.tags.find(tag => tag.startsWith('category:'));
+        const category = categoryTag?.replace('category:', '') || 'unknown';
+        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+      });
+
+      const boqLine: BOQLine = {
+        id: `boq_${dpwhItemNumber.replace(/[^a-zA-Z0-9]/g, '_')}_finishes`,
+        dpwhItemNumberRaw: catalogItem.itemNumber,
+        description: catalogItem.description,
+        unit: catalogItem.unit,
+        quantity: Math.round(totalQuantity * 100) / 100, // 2 decimal places
+        sourceTakeoffLineIds,
+        tags: [
+          `dpwh:${catalogItem.itemNumber}`,
+          `trade:Finishes`,
+          `spaces:${Object.entries(spaceCounts).map(([space, count]) => `${count}× ${space}`).join(', ')}`,
+          `categories:${Object.entries(categoryCounts).map(([cat, count]) => `${count}× ${cat}`).join(', ')}`,
+          ...Array.from(allTags).filter(tag => !tag.startsWith('spaceName:') && !tag.startsWith('category:')),
+        ],
+      };
+
+      boqLines.push(boqLine);
+    }
+
+    // ===================================
+    // ROOFING BOQ MAPPING (Mode B)
+    // ===================================
+    const groupedRoofingByItem: Record<string, TakeoffLine[]> = {};
+
+    for (const line of roofingTakeoffLines) {
+      const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
+      if (!dpwhTag) continue;
+
+      const dpwhItemNumber = dpwhTag.replace('dpwh:', '');
+      if (!groupedRoofingByItem[dpwhItemNumber]) {
+        groupedRoofingByItem[dpwhItemNumber] = [];
+      }
+      groupedRoofingByItem[dpwhItemNumber].push(line);
+    }
+
+    for (const [dpwhItemNumber, lines] of Object.entries(groupedRoofingByItem)) {
+      const catalogItem = dpwhCatalog.find(item => item.itemNumber === dpwhItemNumber);
+      if (!catalogItem) {
+        warnings.push(`Roofing DPWH item "${dpwhItemNumber}" not found in catalog`);
+        continue;
+      }
+
+      const totalQuantity = lines.reduce((sum, line) => sum + line.quantity, 0);
+      const sourceTakeoffLineIds = lines.map(line => line.id);
+      const allTags = new Set<string>();
+      const roofPlaneCounts: Record<string, number> = {};
+
+      for (const line of lines) {
+        line.tags.forEach(tag => allTags.add(tag));
+        const roofPlaneTag = line.tags.find(t => t.startsWith('roofPlane:'));
+        if (roofPlaneTag) {
+          const roofPlaneName = roofPlaneTag.replace('roofPlane:', '');
+          roofPlaneCounts[roofPlaneName] = (roofPlaneCounts[roofPlaneName] || 0) + 1;
+        }
+      }
+
+      const boqLine: BOQLine = {
+        id: `boq_${dpwhItemNumber.replace(/[^a-zA-Z0-9]/g, '_')}_roofing`,
+        dpwhItemNumberRaw: catalogItem.itemNumber,
+        description: catalogItem.description,
+        unit: catalogItem.unit,
+        quantity: Math.round(totalQuantity * 100) / 100,
+        sourceTakeoffLineIds,
+        tags: [
+          `dpwh:${catalogItem.itemNumber}`,
+          `trade:Roofing`,
+          `roofPlanes:${Object.entries(roofPlaneCounts).map(([name, count]) => `${count}× ${name}`).join(', ')}`,
+          ...Array.from(allTags).filter(tag => !tag.startsWith('roofPlane:')),
+        ],
+      };
+
+      boqLines.push(boqLine);
+    }
+
+    // ===================================
+    // SCHEDULE ITEMS BOQ MAPPING (Mode C)
+    // ===================================
+    const groupedScheduleByItem: Record<string, TakeoffLine[]> = {};
+
+    for (const line of scheduleItemsTakeoffLines) {
+      const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
+      if (!dpwhTag) continue;
+
+      const dpwhItemNumber = dpwhTag.replace('dpwh:', '');
+      if (!groupedScheduleByItem[dpwhItemNumber]) {
+        groupedScheduleByItem[dpwhItemNumber] = [];
+      }
+      groupedScheduleByItem[dpwhItemNumber].push(line);
+    }
+
+    for (const [dpwhItemNumber, lines] of Object.entries(groupedScheduleByItem)) {
+      const catalogItem = dpwhCatalog.find(item => item.itemNumber === dpwhItemNumber);
+      if (!catalogItem) {
+        warnings.push(`Schedule item DPWH "${dpwhItemNumber}" not found in catalog`);
+        continue;
+      }
+
+      const totalQuantity = lines.reduce((sum, line) => sum + line.quantity, 0);
+      const sourceTakeoffLineIds = lines.map(line => line.id);
+      const allTags = new Set<string>();
+      const categoryCounts: Record<string, number> = {};
+
+      for (const line of lines) {
+        line.tags.forEach(tag => allTags.add(tag));
+        const categoryTag = line.tags.find(t => t.startsWith('category:'));
+        if (categoryTag) {
+          const category = categoryTag.replace('category:', '');
+          categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+        }
+      }
+
+      const boqLine: BOQLine = {
+        id: `boq_${dpwhItemNumber.replace(/[^a-zA-Z0-9]/g, '_')}_schedule`,
+        dpwhItemNumberRaw: catalogItem.itemNumber,
+        description: catalogItem.description,
+        unit: catalogItem.unit,
+        quantity: Math.round(totalQuantity * 100) / 100,
+        sourceTakeoffLineIds,
+        tags: [
+          `dpwh:${catalogItem.itemNumber}`,
+          `trade:${lines[0].trade}`,
+          `categories:${Object.entries(categoryCounts).map(([cat, count]) => `${count}× ${cat}`).join(', ')}`,
+          ...Array.from(allTags).filter(tag => !tag.startsWith('category:')),
+        ],
+      };
+
+      boqLines.push(boqLine);
+    }
+
     // Calculate summary
     const concreteLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Concrete'));
     const rebarLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Rebar'));
     const formworkLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Formwork'));
+    const finishesLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Finishes'));
+    const roofingLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Roofing'));
+    const scheduleLines = boqLines.filter(line => 
+      !line.tags.some(tag => ['trade:Concrete', 'trade:Rebar', 'trade:Formwork', 'trade:Finishes', 'trade:Roofing'].includes(tag))
+    );
     
     const totalConcreteQty = concreteLines.reduce((sum, line) => sum + line.quantity, 0);
     const totalRebarQty = rebarLines.reduce((sum, line) => sum + line.quantity, 0);
     const totalFormworkQty = formworkLines.reduce((sum, line) => sum + line.quantity, 0);
+    const totalFinishesQty = finishesLines.reduce((sum, line) => sum + line.quantity, 0);
+    const totalRoofingQty = roofingLines.reduce((sum, line) => sum + line.quantity, 0);
+    const totalScheduleQty = scheduleLines.reduce((sum, line) => sum + line.quantity, 0);
 
     const summary = {
       totalLines: boqLines.length,
-      totalQuantity: totalConcreteQty + totalRebarQty + totalFormworkQty,
+      totalQuantity: totalConcreteQty + totalRebarQty + totalFormworkQty + totalFinishesQty + totalRoofingQty + totalScheduleQty,
       trades: {
         Concrete: totalConcreteQty,
         Rebar: totalRebarQty,
         Formwork: totalFormworkQty,
+        Finishes: totalFinishesQty,
+        Roofing: totalRoofingQty,
+        ScheduleItems: totalScheduleQty,
       },
     };
 

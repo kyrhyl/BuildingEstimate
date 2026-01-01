@@ -14,8 +14,7 @@ import {
   getRebarGrade,
   calculateLapLength
 } from '@/lib/math/rebar';
-import {
-  calculateBeamFormwork,
+import { calculateBeamFormwork,
   calculateSlabFormwork,
   calculateRectangularColumnFormwork,
   calculateCircularColumnFormwork,
@@ -23,6 +22,9 @@ import {
   calculateFootingFormwork,
   roundArea
 } from '@/lib/math/formwork';
+import { calculateFinishingWorks } from '@/lib/logic/calculateFinishes';
+import { calculateRoofing } from '@/lib/logic/calculateRoofing';
+import { calculateScheduleItems } from '@/lib/logic/calculateScheduleItems';
 
 // POST /api/projects/:id/takeoff - Generate concrete takeoff from element instances
 export async function POST(
@@ -977,11 +979,104 @@ export async function POST(
     const totalRebar = rebarLines.reduce((sum, line) => sum + line.quantity, 0);
     const totalFormwork = formworkLines.reduce((sum, line) => sum + line.quantity, 0);
 
+    // ===================================
+    // FINISHING WORKS CALCULATION
+    // ===================================
+    let totalFloorArea = 0;
+    let totalWallArea = 0;
+    let totalCeilingArea = 0;
+
+    if (project.spaces && project.spaces.length > 0) {
+      try {
+        const finishesResult = calculateFinishingWorks({
+          spaces: project.spaces || [],
+          openings: project.openings || [],
+          finishTypes: project.finishTypes || [],
+          assignments: project.spaceFinishAssignments || [],
+          levels: project.levels || [],
+          gridX: project.gridX || [],
+          gridY: project.gridY || [],
+        });
+
+        // Add finishing works takeoff lines
+        takeoffLines.push(...finishesResult.takeoffLines);
+        
+        // Add any errors
+        if (finishesResult.errors.length > 0) {
+          errors.push(...finishesResult.errors);
+        }
+
+        // Update summary
+        totalFloorArea = finishesResult.summary.totalFloorArea;
+        totalWallArea = finishesResult.summary.totalWallArea;
+        totalCeilingArea = finishesResult.summary.totalCeilingArea;
+      } catch (error: any) {
+        errors.push(`Finishing works calculation failed: ${error.message}`);
+      }
+    }
+
+    // ===================================
+    // ROOFING CALCULATION (Mode B)
+    // ===================================
+    let totalRoofArea = 0;
+    let roofPlaneCount = 0;
+
+    if (project.roofPlanes && project.roofPlanes.length > 0) {
+      try {
+        const roofingResult = await calculateRoofing(project);
+
+        // Add roofing takeoff lines
+        takeoffLines.push(...roofingResult.takeoffLines);
+
+        // Add any errors
+        if (roofingResult.errors.length > 0) {
+          errors.push(...roofingResult.errors);
+        }
+
+        // Update summary
+        totalRoofArea = roofingResult.summary.totalRoofArea_m2;
+        roofPlaneCount = roofingResult.summary.roofPlaneCount;
+      } catch (error: any) {
+        errors.push(`Roofing calculation failed: ${error.message}`);
+      }
+    }
+
+    // ===================================
+    // SCHEDULE ITEMS CALCULATION (Mode C)
+    // ===================================
+    let scheduleItemCount = 0;
+
+    if (project.scheduleItems && project.scheduleItems.length > 0) {
+      try {
+        const scheduleResult = await calculateScheduleItems(project);
+
+        // Add schedule takeoff lines
+        takeoffLines.push(...scheduleResult.takeoffLines);
+
+        // Add any errors
+        if (scheduleResult.errors.length > 0) {
+          errors.push(...scheduleResult.errors);
+        }
+
+        // Update summary
+        scheduleItemCount = scheduleResult.summary.totalItems;
+      } catch (error: any) {
+        errors.push(`Schedule items calculation failed: ${error.message}`);
+      }
+    }
+
     const summary = {
       totalConcrete: roundVolume(totalConcrete, settings.rounding.concrete),
       totalRebar: Math.round(totalRebar * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
       totalFormwork: roundArea(totalFormwork, settings.rounding.formwork || 2),
+      totalFloorArea: Number(totalFloorArea.toFixed(2)),
+      totalWallArea: Number(totalWallArea.toFixed(2)),
+      totalCeilingArea: Number(totalCeilingArea.toFixed(2)),
+      totalRoofArea: Number(totalRoofArea.toFixed(2)),
       elementCount: instances.length,
+      spaceCount: project.spaces?.length || 0,
+      roofPlaneCount,
+      scheduleItemCount,
       takeoffLineCount: takeoffLines.length,
       boqLineCount: 0, // Will be updated when BOQ is generated
     };

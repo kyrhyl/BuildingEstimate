@@ -672,9 +672,138 @@ Add to existing element types:
 
 ---
 
+## Milestone 11 – Finishing Works Module
+**Status:** ✅ Complete
+
+### Scope
+- Space-based finishing works estimation
+- Floor, wall, and ceiling finishes
+- Opening deductions for wall finishes
+- DPWH pay item integration
+- Full traceability and audit trail
+
+### Deliverables
+- ✅ Space model (grid-based boundaries, auto-computed geometry)
+- ✅ Opening model (doors, windows, vents with area calculation)
+- ✅ Finish type templates (DPWH-validated, configurable rules)
+- ✅ Space-to-finish assignments
+- ✅ Math layer: Pure calculation functions
+  - Floor finish calculation
+  - Ceiling finish calculation (with open-to-below support)
+  - Wall finish calculation (with opening deductions)
+  - Configurable deduction rules (min area, opening types)
+  - Wall height modes (full storey height, fixed height)
+- ✅ Logic layer: Calculation orchestration
+- ✅ API routes: CRUD for spaces, openings, finish types, assignments
+- ✅ Integration: Finishes included in takeoff and BOQ generation
+- ✅ UI pages: Space management, finish management, assignments
+- ✅ Unit tests: 27 tests covering geometry and takeoff calculations
+- ✅ Documentation: Complete module guide + E2E test guide
+
+### Completed Files
+**Data Models:**
+- `/types/index.ts` - Added Space, Opening, FinishType, SpaceFinishAssignment types
+- `/models/Project.ts` - Added finishing works schemas
+
+**Math Layer (Pure Functions):**
+- `/lib/math/finishes/geometry.ts` - Space geometry calculations
+- `/lib/math/finishes/takeoff.ts` - Finish quantity calculations
+- `/lib/math/finishes/index.ts` - Module exports
+
+**Unit Tests:**
+- `/lib/math/finishes/__tests__/geometry.test.ts` - 12 geometry tests
+- `/lib/math/finishes/__tests__/takeoff.test.ts` - 15 takeoff tests
+
+**Logic Layer:**
+- `/lib/logic/calculateFinishes.ts` - Finishing works orchestrator
+
+**API Routes:**
+- `/app/api/projects/[id]/spaces/route.ts` - Space list & create
+- `/app/api/projects/[id]/spaces/[spaceId]/route.ts` - Space CRUD
+- `/app/api/projects/[id]/openings/route.ts` - Opening management
+- `/app/api/projects/[id]/finish-types/route.ts` - Finish type templates
+- `/app/api/projects/[id]/finish-assignments/route.ts` - Assignments
+
+**Integration:**
+- `/app/api/projects/[id]/takeoff/route.ts` - Integrated finishes calculation
+- `/app/api/projects/[id]/boq/route.ts` - Added finishes BOQ mapping
+
+**UI Pages:**
+- `/app/projects/[id]/spaces/page.tsx` - Space management UI
+- `/app/projects/[id]/finishes/page.tsx` - Finish types & assignments UI
+- `/app/projects/[id]/page.tsx` - Added navigation links
+
+**Documentation:**
+- `/docs/FINISHING_WORKS.md` - Complete module documentation (7000+ words)
+- `/docs/FINISHING_WORKS_E2E_TEST.md` - E2E test guide (3500+ words)
+- `/docs/FINISHING_WORKS_IMPLEMENTATION_SUMMARY.md` - Implementation summary
+
+### Features
+**Space Model:**
+- Grid-based rectangular boundaries (A-B × 1-2)
+- Automatic area and perimeter calculation
+- Level assignment
+- Metadata support (e.g., isOpenToBelow)
+- Polygon boundaries (backend ready, UI future)
+
+**Opening Deductions:**
+- Configurable minimum area threshold (default 0.5 m²)
+- Type-based filtering (doors, windows, vents, louvers)
+- Per-finish-type deduction rules
+- Automatic area calculation (width × height × qty)
+
+**Wall Height Modes:**
+- Full storey height (auto-calculated from levels)
+- Fixed height (e.g., 1.2m wainscot)
+- Override support per assignment
+
+**Finish Categories:**
+- Floor finishes (tiles, epoxy, carpet)
+- Wall finishes (paint, tiles, plaster)
+- Ceiling finishes (gypsum board, acoustic)
+- Plaster and paint as separate items
+
+**Calculation Formulas:**
+- Floor: `area × (1 + waste%)`
+- Ceiling: `area × (1 + waste%)` (0 if open-to-below)
+- Wall: `(perimeter × height - openings) × (1 + waste%)`
+
+**DPWH Integration:**
+- Finish types validated against catalog at creation
+- Unit matching enforced
+- Direct BOQ mapping via dpwhItemNumberRaw
+- Grouped by DPWH item in BOQ
+
+**Traceability:**
+- Every takeoff line: formula + inputs + assumptions
+- Every BOQ line: source takeoff line IDs
+- Space and finish type details in tags
+- Opening deduction details in assumptions
+
+### Tests
+- ✅ 12 geometry tests (grid rectangles, polygons, openings)
+- ✅ 15 takeoff tests (floor, wall, ceiling, deductions)
+- ✅ All edge cases covered (open-to-below, fixed height, min area)
+- ✅ E2E test guide with detailed scenarios
+- ✅ Acceptance criteria defined
+
+### Notes
+- Space-based model (not structural element-based)
+- Follows strict layer separation (UI/Logic/Math)
+- Backward compatible (works without finishing data)
+- Ready for polygon boundaries (future UI)
+- Extensible to wall-based geometry (future)
+- Production ready for finishing works estimation
+
+---
+
 ## Future Phases
-- Architectural works
-- Finishes
+- Architectural works (masonry, doors & windows)
 - Rate & cost analysis
 - Revision comparison
 - Multi-user roles
+- Polygon space boundaries (UI)
+- Wall-based geometry (advanced)
+- Visual floor plan editor
+- 3D visualization
+

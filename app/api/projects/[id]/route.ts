@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/mongodb';
+import dbConnect from '@/lib/mongodb';
 import Project from '@/models/Project';
 
 type Params = {
@@ -12,7 +12,7 @@ type Params = {
  */
 export async function GET(request: NextRequest, { params }: Params) {
   try {
-    await connectDB();
+    await dbConnect();
     const { id } = await params;
     
     const project = await Project.findById(id);
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest, { params }: Params) {
  */
 export async function PUT(request: NextRequest, { params }: Params) {
   try {
-    await connectDB();
+    await dbConnect();
     const { id } = await params;
     const body = await request.json();
     
@@ -79,7 +79,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
  */
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
-    await connectDB();
+    await dbConnect();
     const { id } = await params;
     
     const project = await Project.findByIdAndDelete(id);

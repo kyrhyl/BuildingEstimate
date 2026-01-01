@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/mongodb';
+import dbConnect from '@/lib/mongodb';
 import Project from '@/models/Project';
 
 /**
@@ -8,7 +8,7 @@ import Project from '@/models/Project';
  */
 export async function GET() {
   try {
-    await connectDB();
+    await dbConnect();
     const projects = await Project.find({})
       .select('name description createdAt updatedAt')
       .sort({ updatedAt: -1 });
@@ -32,7 +32,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    await dbConnect();
     const body = await request.json();
     
     // Validation

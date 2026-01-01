@@ -15,7 +15,10 @@ interface ProjectDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-type Tab = 'overview' | 'grid' | 'levels' | 'templates' | 'instances' | 'takeoff' | 'boq' | 'history';
+type DPWHPart = 'C' | 'D' | 'E' | 'F' | 'G';
+type GlobalView = 'takeoff' | 'boq';
+type Tab = 'overview' | 'grid' | 'levels' | 'templates' | 'instances' | 'history';
+type SectionTab = 'parts' | 'reports';
 
 export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   const router = useRouter();
@@ -23,6 +26,9 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resolvedId, setResolvedId] = useState<string | null>(null);
+  const [sectionTab, setSectionTab] = useState<SectionTab>('parts');
+  const [activePart, setActivePart] = useState<DPWHPart | null>('D');
+  const [activeGlobalView, setActiveGlobalView] = useState<GlobalView | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [takeoffLines, setTakeoffLines] = useState<any[]>([]);
 
@@ -134,143 +140,549 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
           )}
         </div>
 
-        {/* Tabs */}
-        <div className="mb-6 border-b border-gray-200">
-          <nav className="flex space-x-8">
-            {[
-              { id: 'overview', label: 'Overview' },
-              { id: 'grid', label: 'Grid System' },
-              { id: 'levels', label: 'Levels' },
-              { id: 'templates', label: 'Templates' },
-              { id: 'instances', label: 'Elements' },
-              { id: 'takeoff', label: 'Takeoff' },
-              { id: 'boq', label: 'BOQ' },
-              { id: 'history', label: 'History' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as Tab)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+        {/* Section Tabs: Parts vs Reports */}
+        <div className="mb-4 border-b-2 border-gray-200">
+          <div className="flex gap-1">
+            <button
+              onClick={() => {
+                setSectionTab('parts');
+                setActiveGlobalView(null);
+                if (!activePart) setActivePart('D');
+              }}
+              className={`px-6 py-3 font-semibold text-sm transition-all relative ${
+                sectionTab === 'parts'
+                  ? 'text-blue-700 bg-white border-b-2 border-blue-600 -mb-0.5'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+              }`}
+            >
+              🏗️ Parts
+            </button>
+            <button
+              onClick={() => {
+                setSectionTab('reports');
+                setActivePart(null);
+                if (!activeGlobalView) setActiveGlobalView('takeoff');
+              }}
+              className={`px-6 py-3 font-semibold text-sm transition-all relative ${
+                sectionTab === 'reports'
+                  ? 'text-indigo-700 bg-white border-b-2 border-indigo-600 -mb-0.5'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+              }`}
+            >
+              📊 Reports
+            </button>
+          </div>
         </div>
 
-        {/* Tab Content */}
-        {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Grid System */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold mb-4">Grid System</h2>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="text-gray-600">X-Axis Lines:</span>{' '}
-                  <span className="font-medium">{project.gridX?.length || 0}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Y-Axis Lines:</span>{' '}
-                  <span className="font-medium">{project.gridY?.length || 0}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Levels:</span>{' '}
-                  <span className="font-medium">{project.levels?.length || 0}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setActiveTab('grid')}
-                className="mt-4 text-blue-600 hover:underline text-sm"
-              >
-                Edit Grid →
-              </button>
-            </div>
-
-            {/* Element Templates */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold mb-4">Templates</h2>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="text-gray-600">Total:</span>{' '}
-                  <span className="font-medium">{project.elementTemplates?.length || 0}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setActiveTab('templates')}
-                className="mt-4 text-blue-600 hover:underline text-sm"
-              >
-                Manage Templates →
-              </button>
-            </div>
-
-            {/* Element Instances */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold mb-4">Placed Elements</h2>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="text-gray-600">Total:</span>{' '}
-                  <span className="font-medium">{project.elementInstances?.length || 0}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setActiveTab('instances')}
-                className="mt-4 text-blue-600 hover:underline text-sm"
-              >
-                Place Elements →
-              </button>
+        {/* Parts Section */}
+        {sectionTab === 'parts' && (
+          <div className="mb-4 bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium text-gray-600 whitespace-nowrap">DPWH Vol. III:</span>
+              {[
+                { id: 'C', label: 'Part C - Earthworks', color: 'amber' },
+                { id: 'D', label: 'Part D - Concrete & Reinforcement', color: 'blue' },
+                { id: 'E', label: 'Part E - Finishing & Other Civil Works', color: 'green' },
+                { id: 'F', label: 'Part F - Electrical', color: 'yellow' },
+                { id: 'G', label: 'Part G - Mechanical', color: 'purple' },
+              ].map((part) => (
+                <button
+                  key={part.id}
+                  onClick={() => {
+                    setActivePart(part.id as DPWHPart);
+                    setActiveTab('overview');
+                  }}
+                  className={`px-4 py-2 rounded-md font-medium text-sm whitespace-nowrap transition-colors ${
+                    activePart === part.id
+                      ? part.color === 'amber' ? 'bg-amber-100 text-amber-800 ring-2 ring-amber-400'
+                      : part.color === 'blue' ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400'
+                      : part.color === 'green' ? 'bg-green-100 text-green-800 ring-2 ring-green-400'
+                      : part.color === 'yellow' ? 'bg-yellow-100 text-yellow-800 ring-2 ring-yellow-400'
+                      : 'bg-purple-100 text-purple-800 ring-2 ring-purple-400'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {part.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
 
-        {activeTab === 'grid' && (
-          <GridEditor
-            gridX={project.gridX || []}
-            gridY={project.gridY || []}
-            onSave={handleSaveGrid}
-          />
+        {/* Reports Section */}
+        {sectionTab === 'reports' && (
+          <div className="mb-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg shadow-sm p-4 border border-indigo-200">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-semibold text-indigo-700 whitespace-nowrap">Select Report:</span>
+              <button
+                onClick={() => setActiveGlobalView('takeoff')}
+                className={`px-5 py-2.5 rounded-md font-medium text-sm whitespace-nowrap transition-all ${
+                  activeGlobalView === 'takeoff'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-300'
+                }`}
+              >
+                📊 Takeoff Summary
+              </button>
+              <button
+                onClick={() => setActiveGlobalView('boq')}
+                className={`px-5 py-2.5 rounded-md font-medium text-sm whitespace-nowrap transition-all ${
+                  activeGlobalView === 'boq'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-300'
+                }`}
+              >
+                📋 Bill of Quantities
+              </button>
+              <span className="text-xs text-indigo-600 italic">• Aggregates from all DPWH parts</span>
+            </div>
+          </div>
         )}
 
-        {activeTab === 'levels' && (
-          <LevelsEditor
-            levels={project.levels || []}
-            onSave={handleSaveLevels}
-          />
+        {/* Part-Specific Tabs */}
+        {sectionTab === 'parts' && (
+          <div className="mb-6 border-b border-gray-200">
+            <nav className="flex gap-4 flex-wrap">
+              {/* Part D: Concrete & Reinforcement */}
+              {activePart === 'D' && (
+                <>
+                  {[
+                    { id: 'overview', label: 'Overview' },
+                    { id: 'grid', label: 'Grid System' },
+                    { id: 'levels', label: 'Levels' },
+                    { id: 'templates', label: 'Element Templates' },
+                    { id: 'instances', label: 'Element Instances' },
+                    { id: 'history', label: 'Calc History' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as Tab)}
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
+                        activeTab === tab.id
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </>
+              )}
+
+            {/* Part E: Finishing & Other Civil Works */}
+            {activePart === 'E' && (
+              <>
+                <button
+                  onClick={() => setActiveTab('overview')}
+                  className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
+                    activeTab === 'overview'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Overview
+                </button>
+                <button
+                  onClick={() => router.push(`/projects/${resolvedId}/spaces`)}
+                  className="py-2 px-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm whitespace-nowrap"
+                >
+                  Spaces (Mode A)
+                </button>
+                <button
+                  onClick={() => router.push(`/projects/${resolvedId}/finishes`)}
+                  className="py-2 px-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm whitespace-nowrap"
+                >
+                  Finishes (Mode A)
+                </button>
+                <button
+                  onClick={() => router.push(`/projects/${resolvedId}/roofing`)}
+                  className="py-2 px-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm whitespace-nowrap"
+                >
+                  Roofing (Mode B)
+                </button>
+                <button
+                  onClick={() => router.push(`/projects/${resolvedId}/schedules`)}
+                  className="py-2 px-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm whitespace-nowrap"
+                >
+                  Schedules (Mode C)
+                </button>
+              </>
+            )}
+
+            {/* Part C: Earthworks (Coming Soon) */}
+            {activePart === 'C' && (
+              <div className="py-2 px-3 text-sm text-gray-500">
+                Coming Soon: Earthworks estimation features
+              </div>
+            )}
+
+            {/* Part F: Electrical (Coming Soon) */}
+            {activePart === 'F' && (
+              <div className="py-2 px-3 text-sm text-gray-500">
+                Coming Soon: Electrical estimation features
+              </div>
+            )}
+
+            {/* Part G: Mechanical (Coming Soon) */}
+            {activePart === 'G' && (
+              <div className="py-2 px-3 text-sm text-gray-500">
+                Coming Soon: Mechanical estimation features
+              </div>
+            )}
+          </nav>
+        </div>
+      )}
+
+      {/* Tab Content */}
+      
+      {/* Part D Content */}
+      {sectionTab === 'parts' && activePart === 'D' && (
+          <>
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h2 className="text-lg font-semibold text-blue-900 mb-2">Part D - Concrete & Reinforcement</h2>
+                  <p className="text-sm text-blue-700">
+                    Structural elements including beams, columns, slabs, footings, and reinforcement steel
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Grid System */}
+                  <div className="bg-white rounded-lg shadow-sm p-6">
+                    <h2 className="text-lg font-semibold mb-4">Grid System</h2>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-gray-600">X-Axis Lines:</span>{' '}
+                        <span className="font-medium">{project.gridX?.length || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Y-Axis Lines:</span>{' '}
+                        <span className="font-medium">{project.gridY?.length || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Levels:</span>{' '}
+                        <span className="font-medium">{project.levels?.length || 0}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('grid')}
+                      className="mt-4 text-blue-600 hover:underline text-sm"
+                    >
+                      Edit Grid →
+                    </button>
+                  </div>
+
+                  {/* Element Templates */}
+                  <div className="bg-white rounded-lg shadow-sm p-6">
+                    <h2 className="text-lg font-semibold mb-4">Templates</h2>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-gray-600">Total:</span>{' '}
+                        <span className="font-medium">{project.elementTemplates?.length || 0}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('templates')}
+                      className="mt-4 text-blue-600 hover:underline text-sm"
+                    >
+                      Manage Templates →
+                    </button>
+                  </div>
+
+                  {/* Element Instances */}
+                  <div className="bg-white rounded-lg shadow-sm p-6">
+                    <h2 className="text-lg font-semibold mb-4">Placed Elements</h2>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-gray-600">Total:</span>{' '}
+                        <span className="font-medium">{project.elementInstances?.length || 0}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('instances')}
+                      className="mt-4 text-blue-600 hover:underline text-sm"
+                    >
+                      Place Elements →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'grid' && (
+              <GridEditor
+                gridX={project.gridX || []}
+                gridY={project.gridY || []}
+                onSave={handleSaveGrid}
+              />
+            )}
+
+            {activeTab === 'levels' && (
+              <LevelsEditor
+                levels={project.levels || []}
+                onSave={handleSaveLevels}
+              />
+            )}
+
+            {activeTab === 'templates' && resolvedId && (
+              <ElementTemplatesEditor projectId={resolvedId} />
+            )}
+
+            {activeTab === 'instances' && resolvedId && (
+              <ElementInstancesEditor 
+                projectId={resolvedId}
+                templates={project.elementTemplates || []}
+                gridX={project.gridX || []}
+                gridY={project.gridY || []}
+                levels={project.levels || []}
+              />
+            )}
+
+            {activeTab === 'takeoff' && resolvedId && (
+              <TakeoffViewer 
+                projectId={resolvedId}
+                onTakeoffGenerated={setTakeoffLines}
+              />
+            )}
+
+            {activeTab === 'boq' && resolvedId && (
+              <BOQViewer 
+                projectId={resolvedId}
+                takeoffLines={takeoffLines}
+              />
+            )}
+
+            {activeTab === 'history' && resolvedId && (
+              <CalcRunHistory projectId={resolvedId} />
+            )}
+          </>
         )}
 
-        {activeTab === 'templates' && resolvedId && (
-          <ElementTemplatesEditor projectId={resolvedId} />
+        {/* Part E Content */}
+        {sectionTab === 'parts' && activePart === 'E' && (
+          <>
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h2 className="text-lg font-semibold text-green-900 mb-2">Part E - Finishing & Other Civil Works</h2>
+                  <p className="text-sm text-green-700">
+                    Finishes, roofing, doors, windows, hardware, and other architectural items
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Mode A: Surface-Based */}
+                  <div className="bg-white rounded-lg shadow-sm p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold">Mode A: Surface-Based</h3>
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Area</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Floor, wall, and ceiling finishes calculated from space surfaces
+                    </p>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => router.push(`/projects/${resolvedId}/spaces`)}
+                        className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded text-sm"
+                      >
+                        Manage Spaces →
+                      </button>
+                      <button
+                        onClick={() => router.push(`/projects/${resolvedId}/finishes`)}
+                        className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded text-sm"
+                      >
+                        Assign Finishes →
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Mode B: Roof-System-Based */}
+                  <div className="bg-white rounded-lg shadow-sm p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold">Mode B: Roof-System-Based</h3>
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Slope</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Roofing materials with slope factor adjustments
+                    </p>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => router.push(`/projects/${resolvedId}/roofing`)}
+                        className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded text-sm"
+                      >
+                        Manage Roofing →
+                      </button>
+                      <div className="text-xs text-gray-500 px-2">
+                        Roof Types: {project.roofTypes?.length || 0} | 
+                        Planes: {project.roofPlanes?.length || 0}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mode C: Schedule-Based */}
+                  <div className="bg-white rounded-lg shadow-sm p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold">Mode C: Schedule-Based</h3>
+                      <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Direct Qty</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Doors, windows, hardware with direct quantity input
+                    </p>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => router.push(`/projects/${resolvedId}/schedules`)}
+                        className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded text-sm"
+                      >
+                        Manage Schedule Items →
+                      </button>
+                      <div className="text-xs text-gray-500 px-2">
+                        Items: {project.scheduleItems?.length || 0}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Takeoff & BOQ */}
+                  <div className="bg-white rounded-lg shadow-sm p-6">
+                    <h3 className="text-lg font-semibold mb-4">Takeoff & BOQ</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Generate quantity takeoff and bill of quantities
+                    </p>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => {
+                          setSectionTab('reports');
+                          setActiveGlobalView('takeoff');
+                        }}
+                        className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded text-sm"
+                      >
+                        View Takeoff →
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSectionTab('reports');
+                          setActiveGlobalView('boq');
+                        }}
+                        className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded text-sm"
+                      >
+                        View BOQ →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
-        {activeTab === 'instances' && resolvedId && (
-          <ElementInstancesEditor 
-            projectId={resolvedId}
-            templates={project.elementTemplates || []}
-            gridX={project.gridX || []}
-            gridY={project.gridY || []}
-            levels={project.levels || []}
-          />
+        {/* Global Views: Takeoff & BOQ */}
+        {sectionTab === 'reports' && activeGlobalView === 'takeoff' && resolvedId && (
+          <div>
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
+              <h2 className="text-lg font-semibold text-indigo-900 mb-2">📊 Quantity Takeoff - All DPWH Parts</h2>
+              <p className="text-sm text-indigo-700">
+                Aggregated quantity takeoff from all parts: Earthworks, Concrete & Reinforcement, Finishing, Electrical, and Mechanical
+              </p>
+            </div>
+            <TakeoffViewer 
+              projectId={resolvedId}
+              onTakeoffGenerated={setTakeoffLines}
+            />
+          </div>
         )}
 
-        {activeTab === 'takeoff' && resolvedId && (
-          <TakeoffViewer 
-            projectId={resolvedId}
-            onTakeoffGenerated={setTakeoffLines}
-          />
+        {sectionTab === 'reports' && activeGlobalView === 'boq' && resolvedId && (
+          <div>
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
+              <h2 className="text-lg font-semibold text-indigo-900 mb-2">📋 Bill of Quantities - DPWH Format</h2>
+              <p className="text-sm text-indigo-700">
+                Complete Bill of Quantities mapped to DPWH Volume III pay items from all project parts
+              </p>
+            </div>
+            <BOQViewer 
+              projectId={resolvedId}
+              takeoffLines={takeoffLines}
+            />
+          </div>
         )}
 
-        {activeTab === 'boq' && resolvedId && (
-          <BOQViewer 
-            projectId={resolvedId}
-            takeoffLines={takeoffLines}
-          />
+        {/* Part C Content (Coming Soon) */}
+        {sectionTab === 'parts' && activePart === 'C' && (
+          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Part C - Earthworks</h2>
+              <p className="text-gray-600 mb-6">
+                Excavation, filling, grading, and earthwork quantity estimation features coming soon
+              </p>
+              <div className="text-sm text-gray-500 bg-gray-50 rounded p-4">
+                <p className="font-medium mb-2">Planned Features:</p>
+                <ul className="text-left space-y-1">
+                  <li>• Excavation volume calculations</li>
+                  <li>• Cut and fill analysis</li>
+                  <li>• Grading and compaction estimates</li>
+                  <li>• DPWH earthwork item mapping</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         )}
 
-        {activeTab === 'history' && resolvedId && (
-          <CalcRunHistory projectId={resolvedId} />
+        {/* Part F Content (Coming Soon) */}
+        {sectionTab === 'parts' && activePart === 'F' && (
+          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Part F - Electrical</h2>
+              <p className="text-gray-600 mb-6">
+                Electrical systems, lighting, power distribution estimation features coming soon
+              </p>
+              <div className="text-sm text-gray-500 bg-gray-50 rounded p-4">
+                <p className="font-medium mb-2">Planned Features:</p>
+                <ul className="text-left space-y-1">
+                  <li>• Lighting fixture schedules</li>
+                  <li>• Power outlet layouts</li>
+                  <li>• Conduit and wiring calculations</li>
+                  <li>• Panel and switchgear estimates</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Part G Content (Coming Soon) */}
+        {sectionTab === 'parts' && activePart === 'G' && (
+          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Part G - Mechanical</h2>
+              <p className="text-gray-600 mb-6">
+                HVAC, plumbing, fire protection estimation features coming soon
+              </p>
+              <div className="text-sm text-gray-500 bg-gray-50 rounded p-4">
+                <p className="font-medium mb-2">Planned Features:</p>
+                <ul className="text-left space-y-1">
+                  <li>• HVAC equipment schedules</li>
+                  <li>• Ductwork calculations</li>
+                  <li>• Plumbing fixture counts</li>
+                  <li>• Fire protection systems</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

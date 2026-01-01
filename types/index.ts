@@ -90,8 +90,164 @@ export interface ProjectModel {
   levels?: Level[];
   elementTemplates?: ElementTemplate[];
   elementInstances?: ElementInstance[];
+  // Finishing Works (Mode A)
+  spaces?: Space[];
+  openings?: Opening[];
+  finishTypes?: FinishType[];
+  spaceFinishAssignments?: SpaceFinishAssignment[];
+  // Roofing (Mode B)
+  roofTypes?: RoofType[];
+  roofPlanes?: RoofPlane[];
+  // Schedule Items (Mode C)
+  scheduleItems?: ScheduleItem[];
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+// ===================================
+// FINISHING WORKS
+// ===================================
+
+export interface Space {
+  id: string;
+  name: string;
+  levelId: string;
+  boundary: {
+    type: 'gridRect' | 'polygon';
+    data: GridRectBoundary | PolygonBoundary;
+  };
+  computed: {
+    area_m2: number;
+    perimeter_m: number;
+  };
+  metadata?: Record<string, string>;
+  tags: string[];
+}
+
+export interface GridRectBoundary {
+  gridX: [string, string]; // [startLabel, endLabel]
+  gridY: [string, string];
+}
+
+export interface PolygonBoundary {
+  points: [number, number][]; // [[x, y], ...]
+}
+
+export interface Opening {
+  id: string;
+  levelId: string;
+  spaceId?: string; // optional - can be global to level
+  type: 'door' | 'window' | 'vent' | 'louver' | 'other';
+  width_m: number;
+  height_m: number;
+  qty: number;
+  computed: {
+    area_m2: number;
+  };
+  tags: string[];
+}
+
+export interface FinishType {
+  id: string;
+  category: 'floor' | 'wall' | 'ceiling' | 'plaster' | 'paint';
+  finishName: string;
+  dpwhItemNumberRaw: string; // must exist in catalog
+  unit: string; // must match DPWH unit
+  wallHeightRule?: {
+    mode: 'fullHeight' | 'fixed';
+    value_m?: number; // required if mode=fixed
+  };
+  deductionRule?: {
+    enabled: boolean;
+    minOpeningAreaToDeduct_m2: number;
+    includeTypes: string[]; // e.g., ["door", "window"]
+  };
+  assumptions?: {
+    wastePercent?: number;
+    rounding?: number;
+    notes?: string;
+  };
+}
+
+export interface SpaceFinishAssignment {
+  id: string;
+  spaceId: string;
+  finishTypeId: string;
+  scope: string; // "base", "plaster", "paint", "tile", "ceiling", etc.
+  overrides?: {
+    height_m?: number;
+    wastePercent?: number;
+  };
+}
+
+// ===================================
+// ROOFING (MODE B)
+// ===================================
+
+export interface RoofType {
+  id: string;
+  name: string;
+  dpwhItemNumberRaw: string; // must exist in catalog (e.g., "1013", "1014", "1015")
+  unit: string; // must match DPWH unit (typically "Square Meter")
+  areaBasis: 'slopeArea' | 'planArea'; // default slopeArea
+  lapAllowancePercent: number; // e.g., 0.10 for 10% lap
+  wastePercent: number; // e.g., 0.05 for 5%
+  assumptions?: {
+    accessoriesBundled?: boolean; // ridges, valleys, etc.
+    fastenersIncluded?: boolean;
+    notes?: string;
+  };
+}
+
+export interface RoofPlane {
+  id: string;
+  name: string;
+  levelId: string; // roof level reference
+  boundary: {
+    type: 'gridRect' | 'polygon';
+    data: GridRectBoundary | PolygonBoundary;
+  };
+  slope: {
+    mode: 'ratio' | 'degrees';
+    value: number; // rise/run ratio (e.g., 0.25 for 1:4) or degrees (e.g., 14.04)
+  };
+  roofTypeId: string;
+  computed: {
+    planArea_m2: number;
+    slopeFactor: number;
+    slopeArea_m2: number;
+  };
+  tags: string[];
+}
+
+// ===================================
+// SCHEDULE ITEMS (MODE C)
+// ===================================
+
+export type ScheduleItemCategory = 
+  | 'termite-control'
+  | 'drainage'
+  | 'plumbing'
+  | 'carpentry'
+  | 'hardware'
+  | 'doors'
+  | 'windows'
+  | 'glazing'
+  | 'waterproofing'
+  | 'cladding'
+  | 'insulation'
+  | 'acoustical'
+  | 'other';
+
+export interface ScheduleItem {
+  id: string;
+  category: ScheduleItemCategory;
+  dpwhItemNumberRaw: string; // must exist in catalog
+  descriptionOverride?: string; // optional custom description
+  unit: string; // must match DPWH unit (e.g., "Each", "Lump Sum", "Linear Meter")
+  qty: number;
+  basisNote: string; // e.g., "per door schedule", "lump sum as per plans"
+  tags: string[]; // e.g., ["level:2F", "zone:admin", "type:flush-door"]
 }
 
 // ===================================
