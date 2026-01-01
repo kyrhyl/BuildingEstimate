@@ -145,8 +145,18 @@ export async function PUT(
       // Validate rebar config if provided
       if (template.rebarConfig) {
         if (template.rebarConfig.mainBars) {
-          if (typeof template.rebarConfig.mainBars.count !== 'number' || template.rebarConfig.mainBars.count <= 0) {
-            errors.push(`Template ${template.name}: mainBars.count must be a positive number`);
+          // For beams and columns, count is required
+          // For slabs, count is optional (uses spacing instead)
+          if (template.type === 'beam' || template.type === 'column') {
+            if (typeof template.rebarConfig.mainBars.count !== 'number' || template.rebarConfig.mainBars.count <= 0) {
+              errors.push(`Template ${template.name}: mainBars.count must be a positive number`);
+            }
+          }
+          // For slabs, spacing is required
+          if (template.type === 'slab') {
+            if (typeof template.rebarConfig.mainBars.spacing !== 'number' || template.rebarConfig.mainBars.spacing <= 0) {
+              errors.push(`Template ${template.name}: mainBars.spacing must be a positive number`);
+            }
           }
           if (typeof template.rebarConfig.mainBars.diameter !== 'number' || template.rebarConfig.mainBars.diameter <= 0) {
             errors.push(`Template ${template.name}: mainBars.diameter must be a positive number`);

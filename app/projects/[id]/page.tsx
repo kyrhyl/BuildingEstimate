@@ -9,12 +9,13 @@ import ElementTemplatesEditor from '@/components/ElementTemplatesEditor';
 import ElementInstancesEditor from '@/components/ElementInstancesEditor';
 import TakeoffViewer from '@/components/TakeoffViewer';
 import BOQViewer from '@/components/BOQViewer';
+import CalcRunHistory from '@/components/CalcRunHistory';
 
 interface ProjectDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-type Tab = 'overview' | 'grid' | 'levels' | 'templates' | 'instances' | 'takeoff' | 'boq';
+type Tab = 'overview' | 'grid' | 'levels' | 'templates' | 'instances' | 'takeoff' | 'boq' | 'history';
 
 export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   const router = useRouter();
@@ -144,6 +145,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
               { id: 'instances', label: 'Elements' },
               { id: 'takeoff', label: 'Takeoff' },
               { id: 'boq', label: 'BOQ' },
+              { id: 'history', label: 'History' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -265,6 +267,10 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
             projectId={resolvedId}
             takeoffLines={takeoffLines}
           />
+        )}
+
+        {activeTab === 'history' && resolvedId && (
+          <CalcRunHistory projectId={resolvedId} />
         )}
       </div>
     </div>

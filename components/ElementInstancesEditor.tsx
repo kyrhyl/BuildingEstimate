@@ -16,12 +16,13 @@ type PlacementMode = 'beam' | 'slab' | 'column' | 'foundation';
 
 export default function ElementInstancesEditor({ 
   projectId, 
-  templates, 
+  templates: initialTemplates, 
   gridX, 
   gridY, 
   levels 
 }: ElementInstancesEditorProps) {
   const [instances, setInstances] = useState<ElementInstance[]>([]);
+  const [templates, setTemplates] = useState<ElementTemplate[]>(initialTemplates);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +55,7 @@ export default function ElementInstancesEditor({
 
   useEffect(() => {
     loadInstances();
+    loadTemplates();
   }, [projectId]);
 
   useEffect(() => {
@@ -62,6 +64,18 @@ export default function ElementInstancesEditor({
       setSelectedLevelId(levels[0].label);
     }
   }, [levels]);
+
+  const loadTemplates = async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/templates`);
+      if (!res.ok) throw new Error('Failed to load templates');
+      const data = await res.json();
+      setTemplates(data.templates || []);
+    } catch (err) {
+      console.error('Failed to load templates:', err);
+      // Keep using initial templates if fetch fails
+    }
+  };
 
   const loadInstances = async () => {
     try {

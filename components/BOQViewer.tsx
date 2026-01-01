@@ -128,6 +128,221 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
     return takeoffLines.filter(line => sourceIds.includes(line.id));
   };
 
+  const exportToPDF = async () => {
+    if (boqLines.length === 0) return;
+
+    const jsPDF = (await import('jspdf')).default;
+    const { default: autoTable } = await import('jspdf-autotable');
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    // Title Page
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('BILL OF QUANTITIES', pageWidth / 2, 20, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.text('DPWH Volume III - 2023 Edition', pageWidth / 2, 28, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Project ID: ${projectId}`, pageWidth / 2, 36, { align: 'center' });
+    doc.text(`Generated: ${currentDate}`, pageWidth / 2, 42, { align: 'center' });
+    
+    let yPos = 55;
+
+    // Summary Section
+    if (summary) {
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SUMMARY', 14, yPos);
+      yPos += 10;
+
+      const summaryData = [];
+      if (summary.trades.Concrete > 0) {
+        summaryData.push(['Concrete Works', summary.trades.Concrete.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }), 'm³']);
+      }
+      if (summary.trades.Rebar > 0) {
+        summaryData.push(['Reinforcing Steel', summary.trades.Rebar.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'kg']);
+      }
+      if (summary.trades.Formwork > 0) {
+        summaryData.push(['Formwork', summary.trades.Formwork.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'm²']);
+      }
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Trade', 'Total Quantity', 'Unit']],
+        body: summaryData,
+        theme: 'grid',
+        headStyles: { fillColor: [34, 197, 94], fontStyle: 'bold' },
+        margin: { left: 14, right: 14 },
+      });
+
+      yPos = (doc as any).lastAutoTable.finalY + 15;
+    }
+
+    // BOQ Items by Trade
+    const trades = ['Concrete', 'Rebar', 'Formwork'];
+    
+    for (const trade of trades) {
+      const tradeLines = boqLines.filter(line => line.tags.some(tag => tag === `trade:${trade}`));
+      if (tradeLines.length === 0) continue;
+
+      // Check if we need a new page
+      if (yPos > 240) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      const tradeColor = trade === 'Concrete' ? [59, 130, 246] : trade === 'Rebar' ? [249, 115, 22] : [168, 85, 247];
+      doc.setTextColor(tradeColor[0], tradeColor[1], tradeColor[2]);
+      doc.text(`${trade.toUpperCase()} - DPWH ITEMS`, 14, yPos);
+      doc.setTextColor(0, 0, 0);
+      yPos += 8;
+
+      const tableData = tradeLines.map(line => {
+        const sourceLines = getSourceTakeoffLines(line.sourceTakeoffLineIds);
+        
+        // Get element type breakdown
+        const elementTypes: Record<string, number> = {};
+        sourceLines.forEach(source => {
+          const typeTag = source.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') || 'unknown';
+          elementTypes[typeTag] = (elementTypes[typeTag] || 0) + 1;
+        });
+        const elementBreakdown = Object.entries(elementTypes)
+          .map(([type, count]) => `${count} ${type}`)
+          .join(', ');
+        
+        return [
+          line.dpwhItemNumberRaw,
+          line.description,
+          line.unit === 'kg' 
+            ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+          line.unit,
+          elementBreakdown,
+          sourceLines.length.toString()
+        ];
+      });
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Item No.', 'Description', 'Quantity', 'Unit', 'Element Breakdown', 'Sources']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { 
+          fillColor: tradeColor,
+          fontStyle: 'bold' 
+        },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 20, fontStyle: 'bold' },
+          1: { cellWidth: 60 },
+          2: { cellWidth: 25, halign: 'right' },
+          3: { cellWidth: 15 },
+          4: { cellWidth: 45, fontSize: 7 },
+          5: { cellWidth: 15, halign: 'center' }
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // Detailed Source Traceability Section (New Page)
+    doc.addPage();
+    yPos = 20;
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DETAILED SOURCE TRACEABILITY', 14, yPos);
+    yPos += 12;
+
+    for (const line of boqLines) {
+      const sourceLines = getSourceTakeoffLines(line.sourceTakeoffLineIds);
+      
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${line.dpwhItemNumberRaw} - ${line.description.substring(0, 60)}...`, 14, yPos);
+      yPos += 6;
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Total: ${line.quantity.toFixed(line.unit === 'kg' ? 2 : 3)} ${line.unit} from ${sourceLines.length} source(s)`, 14, yPos);
+      yPos += 8;
+
+      // Source lines table
+      const sourceData = sourceLines.map(source => {
+        const templateTag = source.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'Unknown';
+        const levelTag = source.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'Unknown';
+        
+        return [
+          templateTag,
+          levelTag,
+          source.quantity.toFixed(source.unit === 'kg' ? 2 : 3),
+          source.unit,
+          source.formulaText
+        ];
+      });
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Template', 'Level', 'Qty', 'Unit', 'Formula']],
+        body: sourceData,
+        theme: 'plain',
+        headStyles: { fillColor: [229, 231, 235], textColor: [0, 0, 0], fontStyle: 'bold' },
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        columnStyles: {
+          0: { cellWidth: 30 },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 20, halign: 'right' },
+          3: { cellWidth: 15 },
+          4: { cellWidth: 'auto', fontSize: 6 }
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      yPos = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Footer on all pages
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text(
+        `Page ${i} of ${pageCount}`,
+        pageWidth / 2,
+        doc.internal.pageSize.height - 10,
+        { align: 'center' }
+      );
+      doc.text(
+        'Building Estimate - DPWH Compliant',
+        14,
+        doc.internal.pageSize.height - 10
+      );
+    }
+
+    // Save PDF
+    doc.save(`BOQ_Report_${projectId}_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Generate Button */}
@@ -144,13 +359,25 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
               </p>
             )}
           </div>
-          <button
-            onClick={generateBOQ}
-            disabled={loading || takeoffLines.length === 0}
-            className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 font-medium"
-          >
-            {loading ? 'Generating...' : hasBoq ? 'Regenerate BOQ' : 'Generate BOQ'}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={exportToPDF}
+              disabled={boqLines.length === 0}
+              className="px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 font-medium flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              Export PDF Report
+            </button>
+            <button
+              onClick={generateBOQ}
+              disabled={loading || takeoffLines.length === 0}
+              className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 font-medium"
+            >
+              {loading ? 'Generating...' : hasBoq ? 'Regenerate BOQ' : 'Generate BOQ'}
+            </button>
+          </div>
         </div>
 
         {takeoffLines.length === 0 && (
@@ -187,19 +414,19 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
             <div>
               <div className="text-sm text-blue-700">Total Concrete</div>
               <div className="text-2xl font-bold text-blue-900">
-                {summary.trades.Concrete?.toFixed(3) || '0.000'} m³
+                {(summary.trades.Concrete || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
               </div>
             </div>
             <div>
               <div className="text-sm text-orange-700">Total Rebar</div>
               <div className="text-2xl font-bold text-orange-900">
-                {summary.trades.Rebar?.toFixed(2) || '0.00'} kg
+                {(summary.trades.Rebar || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
               </div>
             </div>
             <div>
               <div className="text-sm text-purple-700">Total Formwork</div>
               <div className="text-2xl font-bold text-purple-900">
-                {summary.trades.Formwork?.toFixed(2) || '0.00'} m²
+                {(summary.trades.Formwork || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
               </div>
             </div>
             <div>
@@ -264,7 +491,9 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
-                          {line.unit === 'kg' ? line.quantity.toFixed(2) : line.quantity.toFixed(3)}
+                          {line.unit === 'kg' 
+                            ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                         </td>
                         <td className="px-4 py-3 text-sm text-center text-gray-600">
                           {line.unit}
@@ -306,7 +535,11 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
                                         </div>
                                         <div>
                                           <span className="text-gray-500">Quantity:</span>{' '}
-                                          <span className="font-medium">{source.quantity.toFixed(3)} {source.unit}</span>
+                                          <span className="font-medium">
+                                            {source.unit === 'kg'
+                                              ? source.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                              : source.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {source.unit}
+                                          </span>
                                         </div>
                                         <div>
                                           <span className="text-gray-500">Formula:</span>{' '}

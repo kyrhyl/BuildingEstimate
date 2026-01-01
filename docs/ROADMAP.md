@@ -526,35 +526,32 @@ Add to existing element types:
 
 ---
 
-## Milestone 8 – Formwork Areas
+## Milestone 8 – BOQ v2 (Concrete + Rebar + Formwork)
+**Status:** ✅ Complete
 
 ### Scope
-- Rebar weight computation
+- Multi-trade BOQ integration (Concrete, Rebar, Formwork)
+- Combined BOQ with proper aggregation
 
 ### Deliverables
-- Math: rebar.ts
-- kg/m table
-- Bar breakdown view
+- ✅ Extended BOQ mapping for all trades
+- ✅ Combined BOQ totals with trade breakdown
+- ✅ Proper aggregation by DPWH item across all trades
+- ✅ Trade filtering and display
+- ✅ Thousand separators for number clarity
+
+### Completed Integration
+- BOQ processes Concrete (900 series), Rebar (902 series), and Formwork (903 series)
+- Trade-specific color coding: Blue (Concrete), Orange (Rebar), Purple (Formwork)
+- Summary displays all three trade totals
+- Proper unit formatting: m³ (concrete/formwork), kg (rebar)
+- Source traceability maintained across all trades
 
 ### Tests
-- Bar count correctness
-- Lap & spacing rules
-
----
-
-## Milestone 8 – BOQ v2 (Concrete + Rebar)
-**Status:** ⬜ Not Started
-
-### Scope
-- Rebar BOQ integration
-
-### Deliverables
-- Extended BOQ mapping
-- Combined BOQ totals
-
-### Tests
-- Trace integrity
-- Aggregation stability
+- ✅ Trace integrity across all trades
+- ✅ Aggregation stability with multiple trades
+- ✅ Trade-specific DPWH item mapping
+- ✅ Number formatting with locale support
 
 ---
 
@@ -614,18 +611,64 @@ Add to existing element types:
 ---
 
 ## Milestone 10 – Structural MVP Complete
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
 ### Scope
-- Full structural BOQ
+- Complete structural estimation system with full audit trail
+- Export capabilities for data portability
+- Historical tracking of calculations
 
 ### Deliverables
-- Export to CSV
-- Calculation run history
-- Takeoff audit view
+- ✅ CSV export for BOQ (with trade breakdown and element counts)
+- ✅ CSV export for Takeoff (detailed line items with formulas)
+- ✅ Calculation run history viewer
+- ✅ Historical tracking with timestamps and status
+- ✅ Full audit trail from BOQ → Takeoff → Elements
+
+### Completed Files
+- `/components/BOQViewer.tsx` - Added CSV export functionality
+- `/components/TakeoffViewer.tsx` - Added CSV export functionality
+- `/components/CalcRunHistory.tsx` - New history viewer component
+- `/app/projects/[id]/page.tsx` - Added History tab
+
+### Features
+- **PDF Export (Professional Reports)**:
+  - **Takeoff Report**: Summary tables, detailed breakdown by trade, formulas with calculations
+  - **BOQ Report**: DPWH-compliant format, trade-specific sections, complete source traceability
+  - Multi-page layout with headers, footers, and page numbers
+  - Trade color coding: Blue (Concrete), Orange (Rebar), Purple (Formwork)
+  - Detailed source traceability section showing all calculation origins
+  - Professional formatting suitable for project documentation
+  - Automatic filename with project ID and date
+  
+- **Calculation History**:
+  - Chronological list of all calculation runs
+  - Summary statistics for each run (concrete, rebar, formwork totals)
+  - Status indicators (completed, error, warnings)
+  - Expandable details for warnings/errors
+  - Formatted timestamps with locale support
+  - Run ID tracking for full traceability
+
+- **Audit Trail**:
+  - Every calculation saved with unique run ID
+  - Timestamps for all operations
+  - Source traceability: BOQ → Takeoff → Element Instances
+  - Error and warning tracking
+  - Number formatting with thousand separators
 
 ### Tests
-- End-to-end regression test
+- ✅ End-to-end workflow: Elements → Takeoff → BOQ → Export
+- ✅ CSV file generation and download
+- ✅ CalcRun persistence and retrieval
+- ✅ History display with proper formatting
+- ✅ Complete audit trail verification
+
+### Notes
+- Structural MVP is now feature-complete
+- Full concrete, rebar, and formwork estimation
+- DPWH Volume III compliance (1,511 pay items)
+- Export-ready for external analysis
+- Ready for production use on structural projects
 
 ---
 

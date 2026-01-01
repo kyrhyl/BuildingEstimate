@@ -114,6 +114,132 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
   const columnLines = takeoffLines.filter(line => line.tags.some(tag => tag === 'type:column'));
   const foundationLines = takeoffLines.filter(line => line.tags.some(tag => tag === 'type:foundation'));
 
+  const exportToPDF = async () => {
+    if (takeoffLines.length === 0) return;
+
+    const jsPDF = (await import('jspdf')).default;
+    const { default: autoTable } = await import('jspdf-autotable');
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    // Title Page
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('QUANTITY TAKEOFF REPORT', pageWidth / 2, 20, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Project ID: ${projectId}`, pageWidth / 2, 30, { align: 'center' });
+    doc.text(`Generated: ${currentDate}`, pageWidth / 2, 36, { align: 'center' });
+    
+    let yPos = 50;
+
+    // Summary Section
+    if (summary) {
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SUMMARY', 14, yPos);
+      yPos += 10;
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Trade', 'Quantity', 'Unit', 'Elements', 'Lines']],
+        body: [
+          ['Concrete', summary.totalConcrete.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }), 'm³', summary.elementCount, summary.takeoffLineCount],
+          ...(summary.totalRebar > 0 ? [['Rebar', summary.totalRebar.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'kg', '-', '-']] : []),
+          ...(summary.totalFormwork > 0 ? [['Formwork', summary.totalFormwork.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'm²', '-', '-']] : []),
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [59, 130, 246], fontStyle: 'bold' },
+        margin: { left: 14, right: 14 },
+      });
+
+      yPos = (doc as any).lastAutoTable.finalY + 15;
+    }
+
+    // Detailed Takeoff by Trade
+    const trades = ['Concrete', 'Rebar', 'Formwork'];
+    
+    for (const trade of trades) {
+      const tradeLines = takeoffLines.filter(line => line.trade === trade);
+      if (tradeLines.length === 0) continue;
+
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${trade.toUpperCase()} TAKEOFF`, 14, yPos);
+      yPos += 8;
+
+      const tableData = tradeLines.map(line => {
+        const typeTag = line.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') || 'unknown';
+        const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'Unknown';
+        const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'Unknown';
+        
+        return [
+          typeTag,
+          templateTag,
+          levelTag,
+          line.unit === 'kg' 
+            ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+          line.unit,
+          line.formulaText
+        ];
+      });
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Type', 'Template', 'Level', 'Quantity', 'Unit', 'Formula']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { 
+          fillColor: trade === 'Concrete' ? [59, 130, 246] : trade === 'Rebar' ? [249, 115, 22] : [168, 85, 247],
+          fontStyle: 'bold' 
+        },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 20 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 20 },
+          3: { cellWidth: 25, halign: 'right' },
+          4: { cellWidth: 15 },
+          5: { cellWidth: 'auto', fontSize: 7 }
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // Footer on last page
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(
+        `Page ${i} of ${pageCount}`,
+        pageWidth / 2,
+        doc.internal.pageSize.height - 10,
+        { align: 'center' }
+      );
+    }
+
+    // Save PDF
+    doc.save(`Takeoff_Report_${projectId}_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Generate Button */}
@@ -130,13 +256,25 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
               </p>
             )}
           </div>
-          <button
-            onClick={generateTakeoff}
-            disabled={loading}
-            className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 font-medium"
-          >
-            {loading ? 'Calculating...' : hasCalcRun ? 'Recalculate Takeoff' : 'Generate Takeoff'}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={exportToPDF}
+              disabled={takeoffLines.length === 0}
+              className="px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 font-medium flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              Export PDF Report
+            </button>
+            <button
+              onClick={generateTakeoff}
+              disabled={loading}
+              className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 font-medium"
+            >
+              {loading ? 'Calculating...' : hasCalcRun ? 'Recalculate Takeoff' : 'Generate Takeoff'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -166,19 +304,19 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
             <div>
               <div className="text-sm text-blue-700">Total Concrete</div>
               <div className="text-2xl font-bold text-blue-900">
-                {summary.totalConcrete.toFixed(3)} m³
+                {summary.totalConcrete.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
               </div>
             </div>
             <div>
               <div className="text-sm text-orange-700">Total Rebar</div>
               <div className="text-2xl font-bold text-orange-900">
-                {summary.totalRebar?.toFixed(2) || '0.00'} kg
+                {(summary.totalRebar || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
               </div>
             </div>
             <div>
               <div className="text-sm text-purple-700">Total Formwork</div>
               <div className="text-2xl font-bold text-purple-900">
-                {summary.totalFormwork?.toFixed(2) || '0.00'} m²
+                {(summary.totalFormwork || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
               </div>
             </div>
             <div>
@@ -200,7 +338,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                   <div className="bg-white rounded p-3">
                     <div className="text-xs text-gray-600">Beams</div>
                     <div className="text-lg font-semibold text-blue-900">
-                      {beamLines.reduce((sum, line) => sum + line.quantity, 0).toFixed(3)} m³
+                      {beamLines.reduce((sum, line) => sum + line.quantity, 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
                     </div>
                     <div className="text-xs text-gray-500">{beamLines.length} items</div>
                   </div>
@@ -209,7 +347,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                   <div className="bg-white rounded p-3">
                     <div className="text-xs text-gray-600">Slabs</div>
                     <div className="text-lg font-semibold text-green-900">
-                      {slabLines.reduce((sum, line) => sum + line.quantity, 0).toFixed(3)} m³
+                      {slabLines.reduce((sum, line) => sum + line.quantity, 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
                     </div>
                     <div className="text-xs text-gray-500">{slabLines.length} items</div>
                   </div>
@@ -218,7 +356,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                   <div className="bg-white rounded p-3">
                     <div className="text-xs text-gray-600">Columns</div>
                     <div className="text-lg font-semibold text-purple-900">
-                      {columnLines.reduce((sum, line) => sum + line.quantity, 0).toFixed(3)} m³
+                      {columnLines.reduce((sum, line) => sum + line.quantity, 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
                     </div>
                     <div className="text-xs text-gray-500">{columnLines.length} items</div>
                   </div>
@@ -227,7 +365,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                   <div className="bg-white rounded p-3">
                     <div className="text-xs text-gray-600">Foundations</div>
                     <div className="text-lg font-semibold text-orange-900">
-                      {foundationLines.reduce((sum, line) => sum + line.quantity, 0).toFixed(3)} m³
+                      {foundationLines.reduce((sum, line) => sum + line.quantity, 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
                     </div>
                     <div className="text-xs text-gray-500">{foundationLines.length} items</div>
                   </div>
@@ -368,7 +506,9 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                         </td>
                       )}
                       <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
-                        {line.quantity.toFixed(line.unit === 'kg' ? 2 : 3)} {line.unit}
+                        {line.unit === 'kg' 
+                          ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {line.unit}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-600 font-mono max-w-md">
                         {isGrouped ? `Total of ${instanceCount} instances` : line.formulaText}
@@ -390,7 +530,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                     Subtotal ({filteredLines.length} items)
                   </td>
                   <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {filteredLines.reduce((sum, line) => sum + line.quantity, 0).toFixed(3)} m³
+                    {filteredLines.reduce((sum, line) => sum + line.quantity, 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
                   </td>
                   <td colSpan={2}></td>
                 </tr>
