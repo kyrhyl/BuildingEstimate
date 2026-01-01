@@ -29,10 +29,38 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [resolvedId, setResolvedId] = useState<string | null>(null);
   const [sectionTab, setSectionTab] = useState<SectionTab>('parts');
-  const [activePart, setActivePart] = useState<DPWHPart | null>('D');
+  const [activePart, setActivePart] = useState<DPWHPart | null>(null);
   const [activeGlobalView, setActiveGlobalView] = useState<GlobalView | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [takeoffLines, setTakeoffLines] = useState<any[]>([]);
+
+  // Load saved state from localStorage on mount
+  useEffect(() => {
+    const savedPart = localStorage.getItem('activePart') as DPWHPart | null;
+    const savedTab = localStorage.getItem('activeTab') as Tab | null;
+    const savedSectionTab = localStorage.getItem('sectionTab') as SectionTab | null;
+    
+    if (savedPart) setActivePart(savedPart);
+    else setActivePart('D'); // Default to Part D if no saved state
+    
+    if (savedTab) setActiveTab(savedTab);
+    if (savedSectionTab) setSectionTab(savedSectionTab);
+  }, []);
+
+  // Save state to localStorage when it changes
+  useEffect(() => {
+    if (activePart) {
+      localStorage.setItem('activePart', activePart);
+    }
+  }, [activePart]);
+
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    localStorage.setItem('sectionTab', sectionTab);
+  }, [sectionTab]);
 
   useEffect(() => {
     params.then((p) => setResolvedId(p.id));

@@ -96,12 +96,42 @@ export interface ProjectModel {
   finishTypes?: FinishType[];
   spaceFinishAssignments?: SpaceFinishAssignment[];
   // Roofing (Mode B)
+  trussDesign?: TrussDesign;
   roofTypes?: RoofType[];
   roofPlanes?: RoofPlane[];
   // Schedule Items (Mode C)
   scheduleItems?: ScheduleItem[];
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+export interface TrussDesign {
+  trussParams: {
+    type: 'howe' | 'fink' | 'kingpost';
+    span_mm: number;
+    middleRise_mm: number;
+    overhang_mm: number;
+    spacing_mm: number;
+    verticalWebCount: number;
+    plateThickness: string;
+    topChordMaterial: { section: string; weight_kg_per_m: number };
+    bottomChordMaterial: { section: string; weight_kg_per_m: number };
+    webMaterial: { section: string; weight_kg_per_m: number };
+  };
+  buildingLength_mm: number;
+  framingParams: {
+    roofingMaterial: { type: string; maxPurlinSpacing_mm: number };
+    purlinSpacing_mm: number;
+    purlinSpec: { section: string; weight_kg_per_m: number };
+    bracing: {
+      type: 'X-Brace' | 'Diagonal' | 'K-Brace';
+      interval_mm: number;
+      material: { section: string; weight_kg_per_m: number };
+    };
+    includeRidgeCap: boolean;
+    includeEaveGirt: boolean;
+  };
+  lastModified?: Date;
 }
 
 // ===================================
@@ -218,6 +248,52 @@ export interface RoofPlane {
     slopeArea_m2: number;
   };
   tags: string[];
+}
+
+// Truss Design (Part E - Steel Roof Trusses & Framing)
+export interface DPWHItemMapping {
+  dpwhItemNumberRaw: string; // e.g., "1047 (8) a"
+  description: string; // from catalog
+  unit: string; // e.g., "Kilogram"
+}
+
+export interface TrussDesign {
+  trussParams: {
+    type: 'howe' | 'fink' | 'kingpost';
+    span_mm: number;
+    middleRise_mm: number;
+    overhang_mm: number;
+    spacing_mm: number;
+    verticalWebCount: number;
+    plateThickness: string;
+    topChordMaterial: { section: string; weight_kg_per_m: number };
+    bottomChordMaterial: { section: string; weight_kg_per_m: number };
+    webMaterial: { section: string; weight_kg_per_m: number };
+  };
+  buildingLength_mm: number;
+  framingParams: {
+    roofingMaterial: { type: string; maxPurlinSpacing_mm: number };
+    purlinSpacing_mm: number;
+    purlinSpec: { section: string; weight_kg_per_m: number };
+    bracing: {
+      type: 'X-Brace' | 'Diagonal' | 'K-Brace';
+      interval_mm: number;
+      material: { section: string; weight_kg_per_m: number };
+    };
+    includeRidgeCap: boolean;
+    includeEaveGirt: boolean;
+  };
+  dpwhItemMappings?: {
+    trussSteel?: DPWHItemMapping;
+    purlinSteel?: DPWHItemMapping;
+    bracingSteel?: DPWHItemMapping;
+    sagRods?: DPWHItemMapping;
+    boltsAndRods?: DPWHItemMapping;
+    steelPlates?: DPWHItemMapping;
+    roofingSheets?: DPWHItemMapping;
+    ridgeCap?: DPWHItemMapping;
+  };
+  lastModified?: Date;
 }
 
 // ===================================

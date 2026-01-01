@@ -138,6 +138,96 @@ const SpaceFinishAssignmentSchema = new Schema<SpaceFinishAssignment>({
 // ROOFING SCHEMAS (MODE B)
 // ===================================
 
+// Truss Design Schema (Part E - Steel Roof Trusses)
+const TrussDesignSchema = new Schema({
+  trussParams: {
+    type: { type: String, enum: ['howe', 'fink', 'kingpost'], default: 'howe' },
+    span_mm: { type: Number, default: 8000 },
+    middleRise_mm: { type: Number, default: 1600 },
+    overhang_mm: { type: Number, default: 450 },
+    spacing_mm: { type: Number, default: 600 },
+    verticalWebCount: { type: Number, default: 3 },
+    plateThickness: { type: String, default: '1.0mm (20 gauge)' },
+    topChordMaterial: {
+      section: { type: String, default: 'C100x50x20x2.5' },
+      weight_kg_per_m: { type: Number, default: 4.89 }
+    },
+    bottomChordMaterial: {
+      section: { type: String, default: 'C100x50x20x2.5' },
+      weight_kg_per_m: { type: Number, default: 4.89 }
+    },
+    webMaterial: {
+      section: { type: String, default: '2L50x50x6' },
+      weight_kg_per_m: { type: Number, default: 4.5 }
+    }
+  },
+  buildingLength_mm: { type: Number, default: 10000 },
+  framingParams: {
+    roofingMaterial: {
+      type: { type: String, default: 'GI_Sheet' },
+      maxPurlinSpacing_mm: { type: Number, default: 1200 }
+    },
+    purlinSpacing_mm: { type: Number, default: 600 },
+    purlinSpec: {
+      section: { type: String, default: 'C100x50x20x2.0' },
+      weight_kg_per_m: { type: Number, default: 4.07 }
+    },
+    bracing: {
+      type: { type: String, enum: ['X-Brace', 'Diagonal', 'K-Brace'], default: 'X-Brace' },
+      interval_mm: { type: Number, default: 6000 },
+      material: {
+        section: { type: String, default: '2L50x50x6' },
+        weight_kg_per_m: { type: Number, default: 4.6 }
+      }
+    },
+    includeRidgeCap: { type: Boolean, default: true },
+    includeEaveGirt: { type: Boolean, default: true }
+  },
+  dpwhItemMappings: {
+    trussSteel: {
+      dpwhItemNumberRaw: { type: String, default: '1047 (8) a' },
+      description: { type: String, default: 'Structural Steel Trusses' },
+      unit: { type: String, default: 'Kilogram' }
+    },
+    purlinSteel: {
+      dpwhItemNumberRaw: { type: String, default: '1047 (8) b' },
+      description: { type: String, default: 'Structural Steel Purlins' },
+      unit: { type: String, default: 'Kilogram' }
+    },
+    bracingSteel: {
+      dpwhItemNumberRaw: { type: String, default: '1047 (4) b' },
+      description: { type: String, default: 'Metal Structure Accessories Turnbuckle' },
+      unit: { type: String, default: 'Each' }
+    },
+    sagRods: {
+      dpwhItemNumberRaw: { type: String, default: '1047 (5) b' },
+      description: { type: String, default: 'Metal Structure Accessories Sagrods' },
+      unit: { type: String, default: 'Kilogram' }
+    },
+    boltsAndRods: {
+      dpwhItemNumberRaw: { type: String, default: '1047 (5) a' },
+      description: { type: String, default: 'Metal Structure Accessories Bolts and Rods' },
+      unit: { type: String, default: 'Kilogram' }
+    },
+    steelPlates: {
+      dpwhItemNumberRaw: { type: String, default: '1047 (5) d' },
+      description: { type: String, default: 'Metal Structure Accessories Steel Plates' },
+      unit: { type: String, default: 'Kilogram' }
+    },
+    roofingSheets: {
+      dpwhItemNumberRaw: { type: String, default: '1013 (1)' },
+      description: { type: String, default: 'Corrugated Metal Roofing Gauge 26 (0.551 mm)' },
+      unit: { type: String, default: 'Square Meter' }
+    },
+    ridgeCap: {
+      dpwhItemNumberRaw: { type: String, default: '1013 (2) a' },
+      description: { type: String, default: 'Fabricated Metal Roofing Accessory Gauge 26 (0.551 mm) Ridge/Hip Rolls' },
+      unit: { type: String, default: 'Linear Meter' }
+    }
+  },
+  lastModified: { type: Date, default: Date.now }
+});
+
 const RoofTypeSchema = new Schema<RoofType>({
   id: { type: String, required: true },
   name: { type: String, required: true },
@@ -229,6 +319,7 @@ const ProjectSchema = new Schema<ProjectModel>(
     finishTypes: [FinishTypeSchema],
     spaceFinishAssignments: [SpaceFinishAssignmentSchema],
     // Roofing (Mode B)
+    trussDesign: TrussDesignSchema,
     roofTypes: [RoofTypeSchema],
     roofPlanes: [RoofPlaneSchema],
     // Schedule Items (Mode C)
