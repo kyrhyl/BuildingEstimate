@@ -19,7 +19,7 @@ interface ProjectDetailPageProps {
 
 type DPWHPart = 'C' | 'D' | 'E' | 'F' | 'G';
 type GlobalView = 'takeoff' | 'boq';
-type Tab = 'overview' | 'grid' | 'levels' | 'templates' | 'instances' | 'history' | 'spaces' | 'finishes' | 'roofing' | 'schedules';
+type Tab = 'overview' | 'grid' | 'levels' | 'templates' | 'instances' | 'history' | 'spaces' | 'finishes' | 'roofing' | 'schedules' | 'takeoff' | 'boq';
 type SectionTab = 'parts' | 'reports';
 
 export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {

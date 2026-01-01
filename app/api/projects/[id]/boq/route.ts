@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Project from '@/models/Project';
 import CalcRun from '@/models/CalcRun';
-import dpwhCatalog from '@/data/dpwh-catalog.json';
+import dpwhCatalogData from '@/data/dpwh-catalog.json';
 import type { TakeoffLine, BOQLine, DPWHCatalogItem } from '@/types';
+
+const dpwhCatalog = dpwhCatalogData.items as DPWHCatalogItem[];
 
 // POST /api/projects/:id/boq - Generate BOQ from takeoff lines
 export async function POST(
@@ -65,14 +67,13 @@ export async function POST(
     }
 
     // Get catalog items
-    const catalog = dpwhCatalog as { items: DPWHCatalogItem[] };
-    const concreteCatalogItems = catalog.items.filter(
+    const concreteCatalogItems = dpwhCatalog.filter(
       item => item.trade === 'Concrete'
     );
-    const rebarCatalogItems = catalog.items.filter(
+    const rebarCatalogItems = dpwhCatalog.filter(
       item => item.trade === 'Rebar'
     );
-    const formworkCatalogItems = catalog.items.filter(
+    const formworkCatalogItems = dpwhCatalog.filter(
       item => item.trade === 'Formwork'
     );
 
@@ -327,7 +328,7 @@ export async function POST(
     // Create BOQ lines for finishes
     for (const [dpwhItemNumber, lines] of Object.entries(groupedFinishesByItem)) {
       // Find item in catalog
-      const catalogItem = (catalog.items as DPWHCatalogItem[]).find(
+      const catalogItem = dpwhCatalog.find(
         item => item.itemNumber === dpwhItemNumber
       );
       

@@ -21,9 +21,9 @@ function TrussDiagram({ trussResult }: { trussResult: TrussResult }) {
   
   // SVG viewport dimensions
   const padding = 60;
-  const scale = 0.05; // 1mm = 0.05px
-  const viewportWidth = 800;
-  const viewportHeight = 500;
+  const scale = 0.15; // 1mm = 0.15px (increased for better visibility)
+  const viewportWidth = 1200;
+  const viewportHeight = 700;
   
   // Calculate scaled dimensions
   const span_px = geometry.span_mm * scale;
@@ -46,8 +46,13 @@ function TrussDiagram({ trussResult }: { trussResult: TrussResult }) {
   const apex = toSVG(geometry.span_mm / 2, geometry.rise_mm);
   const leftBase = toSVG(0, 0);
   const rightBase = toSVG(geometry.span_mm, 0);
-  const leftOverhang = toSVG(-geometry.overhang_mm, 0);
-  const rightOverhang = toSVG(geometry.span_mm + geometry.overhang_mm, 0);
+  
+  // Calculate overhang endpoints by extending top chord along its slope
+  const slopeAngle = Math.atan(geometry.rise_mm / (geometry.span_mm / 2));
+  const overhangVerticalDrop = geometry.overhang_mm * Math.tan(slopeAngle);
+  
+  const leftOverhang = toSVG(-geometry.overhang_mm, -overhangVerticalDrop);
+  const rightOverhang = toSVG(geometry.span_mm + geometry.overhang_mm, -overhangVerticalDrop);
   
   // Simplified truss drawing based on type
   const drawTrussMembers = () => {
@@ -99,24 +104,69 @@ function TrussDiagram({ trussResult }: { trussResult: TrussResult }) {
         );
       }
       
-      // Diagonals
+      // Diagonals - in Howe truss, diagonals alternate direction in each panel
       for (let i = 0; i < panels; i++) {
-        const x1 = (geometry.span_mm / panels) * i;
-        const x2 = (geometry.span_mm / panels) * (i + 1);
-        const y1Top = i < panels / 2 ? 
-          (geometry.rise_mm / (geometry.span_mm / 2)) * x1 :
-          geometry.rise_mm - (geometry.rise_mm / (geometry.span_mm / 2)) * (x1 - geometry.span_mm / 2);
-        const y2Top = i < panels / 2 ?
-          (geometry.rise_mm / (geometry.span_mm / 2)) * x2 :
-          geometry.rise_mm - (geometry.rise_mm / (geometry.span_mm / 2)) * (x2 - geometry.span_mm / 2);
+        const halfSpan = geometry.span_mm / 2;
         
-        const p1 = toSVG(x1, 0);
-        const p2 = toSVG(x2, y2Top);
+        // Determine diagonal direction based on panel position
+        // Even panels: bottom-left to top-right
+        // Odd panels: bottom-right to top-left
+        let x_bottom1: number, x_top2: number;
+        
+        if (i % 2 === 0) {
+          // Upward slanting to the right: from bottom[i] to top[i+1]
+          x_bottom1 = (geometry.span_mm / panels) * i;
+          x_top2 = (geometry.span_mm / panels) * (i + 1);
+        } else {
+          // Upward slanting to the left: from bottom[i+1] to top[i]
+          x_bottom1 = (geometry.span_mm / panels) * (i + 1);
+          x_top2 = (geometry.span_mm / panels) * i;
+        }
+        
+        // Calculate heights at top chord positions
+        const calcTopHeight = (x: number) => {
+          if (x <= halfSpan) {
+            return (geometry.rise_mm / halfSpan) * x;
+          } else {
+            return geometry.rise_mm - (geometry.rise_mm / halfSpan) * (x - halfSpan);
+          }
+        };
+        
+        const bottomPoint = toSVG(x_bottom1, 0);
+        const topPoint = toSVG(x_top2, calcTopHeight(x_top2));
         
         paths.push(
-          <line key={`diag-${i}`} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} 
+          <line key={`diag-${i}`} x1={bottomPoint.x} y1={bottomPoint.y} x2={topPoint.x} y2={topPoint.y} 
             stroke="#ea580c" strokeWidth="2.5" strokeLinecap="round" opacity="0.8">
             <title>Diagonal Web</title>
+          </line>
+        );
+      }
+      
+      // Add diagonal webs for overhang sections (if overhang exists)
+      if (geometry.overhang_mm > 0) {
+        const slopeAngle = Math.atan(geometry.rise_mm / (geometry.span_mm / 2));
+        const overhangVerticalDrop = geometry.overhang_mm * Math.tan(slopeAngle);
+        
+        // Left overhang diagonal: from left overhang tip to left base
+        const leftOverhangTip = toSVG(-geometry.overhang_mm, -overhangVerticalDrop);
+        const leftBasePoint = toSVG(0, 0);
+        
+        paths.push(
+          <line key="diag-overhang-left" x1={leftOverhangTip.x} y1={leftOverhangTip.y} x2={leftBasePoint.x} y2={leftBasePoint.y} 
+            stroke="#ea580c" strokeWidth="2.5" strokeLinecap="round" opacity="0.8">
+            <title>Diagonal Web (Overhang)</title>
+          </line>
+        );
+        
+        // Right overhang diagonal: from right base to right overhang tip
+        const rightBasePoint = toSVG(geometry.span_mm, 0);
+        const rightOverhangTip = toSVG(geometry.span_mm + geometry.overhang_mm, -overhangVerticalDrop);
+        
+        paths.push(
+          <line key="diag-overhang-right" x1={rightBasePoint.x} y1={rightBasePoint.y} x2={rightOverhangTip.x} y2={rightOverhangTip.y} 
+            stroke="#ea580c" strokeWidth="2.5" strokeLinecap="round" opacity="0.8">
+            <title>Diagonal Web (Overhang)</title>
           </line>
         );
       }

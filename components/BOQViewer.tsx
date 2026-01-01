@@ -202,7 +202,7 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
 
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      const tradeColor = trade === 'Concrete' ? [59, 130, 246] : trade === 'Rebar' ? [249, 115, 22] : [168, 85, 247];
+      const tradeColor: [number, number, number] = trade === 'Concrete' ? [59, 130, 246] : trade === 'Rebar' ? [249, 115, 22] : [168, 85, 247];
       doc.setTextColor(tradeColor[0], tradeColor[1], tradeColor[2]);
       doc.text(`${trade.toUpperCase()} - DPWH ITEMS`, 14, yPos);
       doc.setTextColor(0, 0, 0);
@@ -320,7 +320,7 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
     }
 
     // Footer on all pages
-    const pageCount = doc.internal.getNumberOfPages();
+    const pageCount = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);

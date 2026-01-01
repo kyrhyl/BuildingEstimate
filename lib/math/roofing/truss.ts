@@ -133,7 +133,7 @@ function generateHoweTruss(params: TrussParameters): TrussResult {
     forceType: 'tension',
   });
   
-  // Vertical Web Members (compression)
+  // Vertical Web Members (compression) - Main internal webs
   members.push({
     name: 'Vertical Web',
     type: 'web',
@@ -143,15 +143,38 @@ function generateHoweTruss(params: TrussParameters): TrussResult {
     section: '40x70mm',
     forceType: 'compression',
   });
+
+  // Vertical End Webs (at both ends, when overhang exists)
+  // These support the overhang and are separate from the main vertical web count
+  if (overhang_mm > 0) {
+    members.push({
+      name: 'End Vertical Web',
+      type: 'web',
+      subtype: 'vertical',
+      length_mm: overhang_mm * Math.tan(Math.atan(rise_mm / halfSpan_mm)), // Height at overhang position
+      quantity: 2, // One at each end
+      section: '40x70mm',
+      forceType: 'compression',
+    });
+  }
   
   // Diagonal Web Members (tension)
   const diagonalLength_mm = calculateLength(panelWidth_mm, rise_mm / (panelCount / 2));
+  
+  // Base diagonal count for main span
+  let diagonalQuantity = panelCount;
+  
+  // Add 2 more diagonals if overhang exists (for overhang triangular sections)
+  if (overhang_mm > 0) {
+    diagonalQuantity += 2;
+  }
+  
   members.push({
     name: 'Diagonal Web',
     type: 'web',
     subtype: 'diagonal',
     length_mm: diagonalLength_mm,
-    quantity: panelCount,
+    quantity: diagonalQuantity,
     section: '40x70mm',
     forceType: 'tension',
   });
@@ -304,6 +327,20 @@ function generateFinkTruss(params: TrussParameters): TrussResult {
     section: '40x70mm',
     forceType: 'compression',
   });
+
+  // Vertical End Webs (at both ends, when overhang exists)
+  if (overhang_mm > 0) {
+    const endWebHeight_mm = overhang_mm * Math.tan(Math.atan(rise_mm / (span_mm / 2)));
+    members.push({
+      name: 'End Vertical Web',
+      type: 'web',
+      subtype: 'vertical',
+      length_mm: endWebHeight_mm,
+      quantity: 2, // One at each end
+      section: '40x70mm',
+      forceType: 'compression',
+    });
+  }
   
   // W-pattern diagonals (4 pieces forming W)
   const quarterSpan = span_mm / 4;
@@ -442,6 +479,20 @@ function generateKingPostTruss(params: TrussParameters): TrussResult {
     section: '40x90mm',
     forceType: 'compression',
   });
+
+  // Vertical End Webs (at both ends, when overhang exists)
+  if (overhang_mm > 0) {
+    const endWebHeight_mm = overhang_mm * Math.tan(Math.atan(rise_mm / (span_mm / 2)));
+    members.push({
+      name: 'End Vertical Web',
+      type: 'web',
+      subtype: 'vertical',
+      length_mm: endWebHeight_mm,
+      quantity: 2, // One at each end
+      section: '40x70mm',
+      forceType: 'compression',
+    });
+  }
   
   // Two principal rafters (acting as struts)
   const strutLength_mm = calculateLength(span_mm / 2, rise_mm);
