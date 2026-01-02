@@ -95,6 +95,7 @@ export interface ProjectModel {
   openings?: Opening[];
   finishTypes?: FinishType[];
   spaceFinishAssignments?: SpaceFinishAssignment[];
+  wallSurfaces?: WallSurface[]; // Grid-based wall surface definitions
   // Roofing (Mode B)
   trussDesign?: TrussDesign;
   roofTypes?: RoofType[];
@@ -166,13 +167,36 @@ export interface PolygonBoundary {
 export interface Opening {
   id: string;
   levelId: string;
-  spaceId?: string; // optional - can be global to level
+  spaceId?: string; // optional - for space-based calculations (legacy)
+  wallSurfaceId?: string; // optional - for wall surface-based calculations
   type: 'door' | 'window' | 'vent' | 'louver' | 'other';
   width_m: number;
   height_m: number;
   qty: number;
   computed: {
     area_m2: number;
+  };
+  tags: string[];
+}
+
+export interface WallSurface {
+  id: string;
+  name: string; // e.g., "North Exterior Wall", "Living Room Partition"
+  gridLine: {
+    axis: 'X' | 'Y'; // X = gridX lines (typically labeled A, B, C), Y = gridY lines (typically 1, 2, 3)
+    label: string; // e.g., "A" or "1"
+    span: [string, string]; // e.g., ["1", "5"] for grid A from row 1 to 5
+  };
+  levelStart: string; // Starting level label
+  levelEnd: string; // Ending level label
+  surfaceType: 'exterior' | 'interior' | 'both'; // Classification
+  facing?: 'north' | 'south' | 'east' | 'west'; // Optional orientation
+  computed: {
+    length_m: number; // Horizontal length from grid span
+    height_m: number; // Vertical height from level difference
+    grossArea_m2: number; // length × height
+    sidesCount: number; // 1 for exterior, 2 for interior (both faces)
+    totalArea_m2: number; // grossArea × sidesCount
   };
   tags: string[];
 }
@@ -206,6 +230,17 @@ export interface SpaceFinishAssignment {
   scope: string; // "base", "plaster", "paint", "tile", "ceiling", etc.
   overrides?: {
     height_m?: number;
+    wastePercent?: number;
+  };
+}
+
+export interface WallSurfaceFinishAssignment {
+  id: string;
+  wallSurfaceId: string;
+  finishTypeId: string;
+  scope: string; // "plaster", "paint", "tile", etc.
+  side?: 'single' | 'both'; // Override default sides count from surface type
+  overrides?: {
     wastePercent?: number;
   };
 }

@@ -147,14 +147,33 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
       doc.text('SUMMARY', 14, yPos);
       yPos += 10;
 
+      // Group quantities by trade and unit
+      const tradeSummary: Record<string, { qty: number; unit: string; count: number }> = {};
+      takeoffLines.forEach(line => {
+        const key = `${line.trade}_${line.unit}`;
+        if (!tradeSummary[key]) {
+          tradeSummary[key] = { qty: 0, unit: line.unit, count: 0 };
+        }
+        tradeSummary[key].qty += line.quantity;
+        tradeSummary[key].count += 1;
+      });
+
+      const summaryBody = Object.entries(tradeSummary).map(([key, data]) => {
+        const trade = key.split('_')[0];
+        const decimals = data.unit === 'kg' ? 2 : 3;
+        return [
+          trade,
+          data.qty.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }),
+          data.unit,
+          '-',
+          data.count.toString()
+        ];
+      });
+
       autoTable(doc, {
         startY: yPos,
         head: [['Trade', 'Quantity', 'Unit', 'Elements', 'Lines']],
-        body: [
-          ['Concrete', summary.totalConcrete.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }), 'm³', summary.elementCount, summary.takeoffLineCount],
-          ...(summary.totalRebar > 0 ? [['Rebar', summary.totalRebar.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'kg', '-', '-']] : []),
-          ...(summary.totalFormwork > 0 ? [['Formwork', summary.totalFormwork.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'm²', '-', '-']] : []),
-        ],
+        body: summaryBody,
         theme: 'grid',
         headStyles: { fillColor: [59, 130, 246], fontStyle: 'bold' },
         margin: { left: 14, right: 14 },
@@ -164,9 +183,9 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
     }
 
     // Detailed Takeoff by Trade
-    const trades = ['Concrete', 'Rebar', 'Formwork'];
+    const uniqueTrades = [...new Set(takeoffLines.map(line => line.trade))].sort();
     
-    for (const trade of trades) {
+    for (const trade of uniqueTrades) {
       const tradeLines = takeoffLines.filter(line => line.trade === trade);
       if (tradeLines.length === 0) continue;
 
@@ -182,9 +201,17 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
       yPos += 8;
 
       const tableData = tradeLines.map(line => {
-        const typeTag = line.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') || 'unknown';
-        const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'Unknown';
-        const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'Unknown';
+        const typeTag = line.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') 
+          || line.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
+          || line.tags.find(tag => tag.startsWith('category:'))?.replace('category:', '')
+          || line.trade.toLowerCase();
+        const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') 
+          || line.tags.find(tag => tag.startsWith('finish:'))?.replace('finish:', '')
+          || line.tags.find(tag => tag.startsWith('section:'))?.replace('section:', '')
+          || line.resourceKey.split('-')[0] || 'N/A';
+        const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
+          || line.tags.find(tag => tag.startsWith('space:'))?.replace('space:', '')
+          || 'N/A';
         
         return [
           typeTag,
@@ -416,9 +443,16 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                   className="px-3 py-1 border border-gray-300 rounded text-sm"
                 >
                   <option value="all">All Trades</option>
-                  <option value="Concrete">Concrete Only</option>
-                  <option value="Rebar">Rebar Only</option>
-                  <option value="Formwork">Formwork Only</option>
+                  <option value="Concrete">Concrete</option>
+                  <option value="Rebar">Rebar</option>
+                  <option value="Formwork">Formwork</option>
+                  <option value="Roofing">Roofing</option>
+                  <option value="Finishes">Finishes</option>
+                  <option value="Plumbing">Plumbing</option>
+                  <option value="Carpentry">Carpentry</option>
+                  <option value="Hardware">Hardware</option>
+                  <option value="Doors & Windows">Doors & Windows</option>
+                  <option value="Other">Other</option>
                 </select>
               </div>
               <div className="flex items-center gap-2">
@@ -461,8 +495,8 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                   const grouped: Record<string, TakeoffLine[]> = {};
                   
                   filteredLines.forEach(line => {
-                    const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'Unknown';
-                    const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'Unknown';
+                    const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'N/A';
+                    const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'N/A';
                     const key = `${line.trade}_${templateTag}_${levelTag}`;
                     
                     if (!grouped[key]) {
@@ -480,9 +514,21 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                 })() : filteredLines).map((line, idx) => {
                   const isGrouped = summarizedView && line.formulaText.includes('instances');
                   const instanceCount = isGrouped ? parseInt(line.formulaText.split(' ')[0]) : 0;
-                  const typeTag = line.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') || 'unknown';
-                  const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'Unknown';
-                  const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'Unknown';
+                  
+                  // Extract tags with proper fallbacks
+                  const typeTag = line.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') 
+                    || line.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
+                    || line.tags.find(tag => tag.startsWith('category:'))?.replace('category:', '')
+                    || line.trade.toLowerCase();
+                    
+                  const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') 
+                    || line.tags.find(tag => tag.startsWith('finish:'))?.replace('finish:', '')
+                    || line.tags.find(tag => tag.startsWith('section:'))?.replace('section:', '')
+                    || line.resourceKey.split('-')[0] || 'N/A';
+                    
+                  const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
+                    || line.tags.find(tag => tag.startsWith('space:'))?.replace('space:', '')
+                    || 'N/A';
                   
                   const typeColors = {
                     beam: 'text-blue-700 bg-blue-50',
@@ -526,13 +572,28 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
               </tbody>
               <tfoot className="bg-gray-50 font-semibold">
                 <tr>
-                  <td colSpan={3} className="px-4 py-3 text-sm text-gray-700">
+                  <td colSpan={summarizedView ? 4 : 3} className="px-4 py-3 text-sm text-gray-700">
                     Subtotal ({filteredLines.length} items)
                   </td>
                   <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {filteredLines.reduce((sum, line) => sum + line.quantity, 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
+                    {(() => {
+                      // Group by unit and sum
+                      const byUnit: Record<string, number> = {};
+                      filteredLines.forEach(line => {
+                        byUnit[line.unit] = (byUnit[line.unit] || 0) + line.quantity;
+                      });
+                      
+                      return Object.entries(byUnit).map(([unit, qty]) => (
+                        <div key={unit}>
+                          {qty.toLocaleString('en-US', { 
+                            minimumFractionDigits: unit === 'kg' ? 2 : 3, 
+                            maximumFractionDigits: unit === 'kg' ? 2 : 3 
+                          })} {unit}
+                        </div>
+                      ));
+                    })()}
                   </td>
-                  <td colSpan={2}></td>
+                  <td colSpan={summarizedView ? 1 : 2}></td>
                 </tr>
               </tfoot>
             </table>

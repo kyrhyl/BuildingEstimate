@@ -14,16 +14,27 @@ interface Space {
   };
 }
 
+interface GridLine {
+  label: string;
+  offset: number;
+}
+
+interface Level {
+  label: string;
+  elevation: number;
+}
+
 interface SpacesManagerProps {
   projectId: string;
-  levels: { label: string }[];
-  gridX: { label: string }[];
-  gridY: { label: string }[];
+  levels: Level[];
+  gridX: GridLine[];
+  gridY: GridLine[];
 }
 
 export default function SpacesManager({ projectId, levels, gridX, gridY }: SpacesManagerProps) {
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     levelId: '',
@@ -86,16 +97,173 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this space?')) return;
     try {
-      const res = await fetch(`/api/projects/${projectId}/spaces?spaceId=${id}`, {
+      const res = await fetch(`/api/projects/${projectId}/spaces/${id}`, {
         method: 'DELETE',
       });
-      if (res.ok) loadSpaces();
+      if (res.ok) {
+        loadSpaces();
+      } else {
+        const data = await res.json();
+        alert(`Failed to delete space: ${data.error || 'Unknown error'}`);
+      }
     } catch (error) {
       console.error('Error deleting space:', error);
+      alert('Failed to delete space. Please try again.');
     }
   };
 
   const totalFloorArea = spaces.reduce((sum, s) => sum + (s.computed?.floorArea_m2 || 0), 0);
+
+  // Floor Plan Visualization Component
+  const FloorPlanVisualization = () => {
+    const padding = 60;
+    const width = 600;
+    const height = 600;
+
+    // Calculate bounds
+    const minX = Math.min(...gridX.map(g => g.offset));
+    const maxX = Math.max(...gridX.map(g => g.offset));
+    const minY = Math.min(...gridY.map(g => g.offset));
+    const maxY = Math.max(...gridY.map(g => g.offset));
+
+    const rangeX = maxX - minX || 1;
+    const rangeY = maxY - minY || 1;
+    const scale = Math.min((width - 2 * padding) / rangeX, (height - 2 * padding) / rangeY);
+
+    const toSvgX = (offset: number) => padding + (offset - minX) * scale;
+    const toSvgY = (offset: number) => height - padding - (offset - minY) * scale;
+
+    return (
+      <svg width={width} height={height} className="border border-gray-200 rounded-lg bg-white">
+        {/* Grid Lines X */}
+        {gridX.map((grid) => {
+          const x = toSvgX(grid.offset);
+          return (
+            <g key={`gridX-${grid.label}`}>
+              <line
+                x1={x}
+                y1={toSvgY(minY)}
+                x2={x}
+                y2={toSvgY(maxY)}
+                stroke="#e5e7eb"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+              />
+              <text
+                x={x}
+                y={height - padding + 20}
+                textAnchor="middle"
+                fontSize="12"
+                fill="#6b7280"
+              >
+                {grid.label}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Grid Lines Y */}
+        {gridY.map((grid) => {
+          const y = toSvgY(grid.offset);
+          return (
+            <g key={`gridY-${grid.label}`}>
+              <line
+                x1={toSvgX(minX)}
+                y1={y}
+                x2={toSvgX(maxX)}
+                y2={y}
+                stroke="#e5e7eb"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+              />
+              <text
+                x={padding - 20}
+                y={y}
+                textAnchor="middle"
+                fontSize="12"
+                fill="#6b7280"
+                dominantBaseline="middle"
+              >
+                {grid.label}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Spaces */}
+        {spaces.map((space) => {
+          const isSelected = space.id === selectedSpaceId;
+          
+          if (!space.boundary?.data?.gridX || !space.boundary?.data?.gridY) return null;
+
+          const [xStart, xEnd] = space.boundary.data.gridX;
+          const [yStart, yEnd] = space.boundary.data.gridY;
+
+          const xStartGrid = gridX.find(g => g.label === xStart);
+          const xEndGrid = gridX.find(g => g.label === xEnd);
+          const yStartGrid = gridY.find(g => g.label === yStart);
+          const yEndGrid = gridY.find(g => g.label === yEnd);
+
+          if (!xStartGrid || !xEndGrid || !yStartGrid || !yEndGrid) return null;
+
+          const x1 = toSvgX(Math.min(xStartGrid.offset, xEndGrid.offset));
+          const x2 = toSvgX(Math.max(xStartGrid.offset, xEndGrid.offset));
+          const y1 = toSvgY(Math.max(yStartGrid.offset, yEndGrid.offset));
+          const y2 = toSvgY(Math.min(yStartGrid.offset, yEndGrid.offset));
+
+          const rectWidth = x2 - x1;
+          const rectHeight = y2 - y1;
+          const centerX = (x1 + x2) / 2;
+          const centerY = (y1 + y2) / 2;
+
+          return (
+            <g key={space.id}>
+              <rect
+                x={x1}
+                y={y1}
+                width={rectWidth}
+                height={rectHeight}
+                fill={isSelected ? '#3b82f6' : '#10b981'}
+                fillOpacity={isSelected ? 0.3 : 0.15}
+                stroke={isSelected ? '#3b82f6' : '#10b981'}
+                strokeWidth={isSelected ? 3 : 2}
+                style={{ cursor: 'pointer' }}
+                onClick={() => setSelectedSpaceId(space.id)}
+              />
+              <text
+                x={centerX}
+                y={centerY}
+                textAnchor="middle"
+                fontSize="11"
+                fill={isSelected ? '#1e40af' : '#047857'}
+                fontWeight={isSelected ? 'bold' : 'normal'}
+                dominantBaseline="middle"
+                style={{ pointerEvents: 'none' }}
+              >
+                {space.name}
+              </text>
+              <text
+                x={centerX}
+                y={centerY + 14}
+                textAnchor="middle"
+                fontSize="9"
+                fill="#6b7280"
+                dominantBaseline="middle"
+                style={{ pointerEvents: 'none' }}
+              >
+                {space.computed?.floorArea_m2?.toFixed(1)}m²
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Title */}
+        <text x={padding} y={20} fontSize="12" fill="#6b7280" fontWeight="500">
+          Spaces Floor Plan - Click to select
+        </text>
+      </svg>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -119,117 +287,129 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
         </div>
       </div>
 
-      {/* Create Form */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 mb-6 border border-green-200">
-          <h3 className="font-semibold text-green-900 text-lg">Create New Space</h3>
-          <p className="text-sm text-green-700 mt-1">Define a space by selecting grid boundaries</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Top Row: Create Form + Floor Plan */}
+      <div className="grid grid-cols-2 gap-6" style={{ height: '600px' }}>
+        {/* Left Column: Create Form */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 overflow-y-auto">
+          <h3 className="font-semibold text-base mb-3">Create New Space</h3>
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Space Name</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Space Name</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="e.g., Living Room, Bedroom 1"
                 required
               />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Level</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Level</label>
               <select
                 value={formData.levelId}
                 onChange={(e) => setFormData({ ...formData, levelId: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 required
               >
                 <option value="">Select Level</option>
-                {levels.map((level) => (
-                  <option key={level.label} value={level.label}>
-                    {level.label}
-                  </option>
+                {levels.map((l) => (
+                  <option key={l.label} value={l.label}>{l.label}</option>
                 ))}
               </select>
             </div>
-          </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">X Start</label>
+                <select
+                  value={formData.gridXStart}
+                  onChange={(e) => setFormData({ ...formData, gridXStart: e.target.value })}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select</option>
+                  {gridX.map((g) => (
+                    <option key={g.label} value={g.label}>{g.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">X End</label>
+                <select
+                  value={formData.gridXEnd}
+                  onChange={(e) => setFormData({ ...formData, gridXEnd: e.target.value })}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select</option>
+                  {gridX.map((g) => (
+                    <option key={g.label} value={g.label}>{g.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Y Start</label>
+                <select
+                  value={formData.gridYStart}
+                  onChange={(e) => setFormData({ ...formData, gridYStart: e.target.value })}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select</option>
+                  {gridY.map((g) => (
+                    <option key={g.label} value={g.label}>{g.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Y End</label>
+                <select
+                  value={formData.gridYEnd}
+                  onChange={(e) => setFormData({ ...formData, gridYEnd: e.target.value })}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select</option>
+                  {gridY.map((g) => (
+                    <option key={g.label} value={g.label}>{g.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">X Start</label>
-              <select
-                value={formData.gridXStart}
-                onChange={(e) => setFormData({ ...formData, gridXStart: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select</option>
-                {gridX.map((g) => (
-                  <option key={g.label} value={g.label}>{g.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">X End</label>
-              <select
-                value={formData.gridXEnd}
-                onChange={(e) => setFormData({ ...formData, gridXEnd: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select</option>
-                {gridX.map((g) => (
-                  <option key={g.label} value={g.label}>{g.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Y Start</label>
-              <select
-                value={formData.gridYStart}
-                onChange={(e) => setFormData({ ...formData, gridYStart: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select</option>
-                {gridY.map((g) => (
-                  <option key={g.label} value={g.label}>{g.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Y End</label>
-              <select
-                value={formData.gridYEnd}
-                onChange={(e) => setFormData({ ...formData, gridYEnd: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select</option>
-                {gridY.map((g) => (
-                  <option key={g.label} value={g.label}>{g.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+            <button
+              type="submit"
+              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm shadow-sm transition-colors"
+            >
+              Create Space
+            </button>
+          </form>
+        </div>
 
-          <button
-            type="submit"
-            className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-sm transition-colors"
-          >
-            Create Space
-          </button>
-        </form>
+        {/* Right Column: Floor Plan Visualization */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col">
+          <h3 className="font-semibold text-lg mb-4">Floor Plan View</h3>
+          <div className="flex-1 flex items-center justify-center">
+            <FloorPlanVisualization />
+          </div>
+          <p className="text-xs text-gray-500 text-center mt-3">
+            Click on a space to select it
+          </p>
+        </div>
       </div>
 
-      {/* Spaces List */}
+      {/* Bottom Row: Spaces Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-200 bg-gray-50">
+        <div className="p-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
           <h3 className="font-semibold text-lg">Spaces ({spaces.length})</h3>
+          {selectedSpaceId && (
+            <button
+              onClick={() => setSelectedSpaceId(null)}
+              className="text-sm text-green-600 hover:text-green-700"
+            >
+              Clear Selection
+            </button>
+          )}
         </div>
 
         {spaces.length === 0 ? (
@@ -243,26 +423,49 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Floor Area (m²)</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Wall Area (m²)</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ceiling Area (m²)</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grid Bounds</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Floor Area (m²)</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Wall Area (m²)</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ceiling Area (m²)</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-200">
                 {spaces.map((space) => (
-                  <tr key={space.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-gray-900">{space.name}</td>
-                    <td className="px-6 py-4 text-gray-600">{space.levelId}</td>
-                    <td className="px-6 py-4 text-right text-gray-900">{space.computed?.floorArea_m2.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-right text-gray-600">{space.computed?.wallArea_m2.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-right text-gray-600">{space.computed?.ceilingArea_m2.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-center">
+                  <tr 
+                    key={space.id} 
+                    className={`transition-colors cursor-pointer ${
+                      selectedSpaceId === space.id ? 'bg-green-50' : 'hover:bg-gray-50'
+                    }`}
+                    onClick={() => setSelectedSpaceId(space.id)}
+                  >
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-gray-900">{space.name}</span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{space.levelId}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {space.boundary?.data?.gridX?.join(' - ')} × {space.boundary?.data?.gridY?.join(' - ')}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="font-semibold text-green-600">
+                        {space.computed?.floorArea_m2?.toFixed(2) || '0.00'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm text-gray-600">
+                      {space.computed?.wallArea_m2?.toFixed(2) || '0.00'}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm text-gray-600">
+                      {space.computed?.ceilingArea_m2?.toFixed(2) || '0.00'}
+                    </td>
+                    <td className="px-4 py-3">
                       <button
-                        onClick={() => handleDelete(space.id)}
-                        className="text-red-600 hover:text-red-800 font-medium text-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(space.id);
+                        }}
+                        className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       >
                         Delete
                       </button>

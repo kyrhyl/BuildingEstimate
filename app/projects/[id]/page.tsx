@@ -11,6 +11,7 @@ import TakeoffViewer from '@/components/TakeoffViewer';
 import BOQViewer from '@/components/BOQViewer';
 import CalcRunHistory from '@/components/CalcRunHistory';
 import SpacesManager from '@/components/PartE/SpacesManager';
+import WallSurfacesManager from '@/components/PartE/WallSurfacesManager';
 import RoofingManager from '@/components/PartE/RoofingManager';
 
 interface ProjectDetailPageProps {
@@ -19,7 +20,7 @@ interface ProjectDetailPageProps {
 
 type DPWHPart = 'C' | 'D' | 'E' | 'F' | 'G';
 type GlobalView = 'takeoff' | 'boq';
-type Tab = 'overview' | 'grid' | 'levels' | 'templates' | 'instances' | 'history' | 'spaces' | 'finishes' | 'roofing' | 'schedules' | 'takeoff' | 'boq';
+type Tab = 'overview' | 'grid' | 'levels' | 'templates' | 'instances' | 'history' | 'spaces' | 'wallSurfaces' | 'finishes' | 'roofing' | 'schedules' | 'takeoff' | 'boq';
 type SectionTab = 'parts' | 'reports';
 
 export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
@@ -154,231 +155,252 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <button
-            onClick={() => router.push('/projects')}
-            className="text-blue-600 hover:underline mb-4"
-          >
-            ← Back to Projects
-          </button>
-          <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
-          {project.description && (
-            <p className="text-gray-600 mt-2">{project.description}</p>
-          )}
-        </div>
-
-        {/* Section Tabs: Parts vs Reports */}
-        <div className="mb-4 border-b-2 border-gray-200">
-          <div className="flex gap-1">
-            <button
-              onClick={() => {
-                setSectionTab('parts');
-                setActiveGlobalView(null);
-                if (!activePart) setActivePart('D');
-              }}
-              className={`px-6 py-3 font-semibold text-sm transition-all relative ${
-                sectionTab === 'parts'
-                  ? 'text-blue-700 bg-white border-b-2 border-blue-600 -mb-0.5'
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-              }`}
-            >
-              🏗️ Parts
-            </button>
-            <button
-              onClick={() => {
-                setSectionTab('reports');
-                setActivePart(null);
-                if (!activeGlobalView) setActiveGlobalView('takeoff');
-              }}
-              className={`px-6 py-3 font-semibold text-sm transition-all relative ${
-                sectionTab === 'reports'
-                  ? 'text-indigo-700 bg-white border-b-2 border-indigo-600 -mb-0.5'
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-              }`}
-            >
-              📊 Reports
-            </button>
-          </div>
-        </div>
-
-        {/* Parts Section */}
-        {sectionTab === 'parts' && (
-          <div className="mb-4 bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-medium text-gray-600 whitespace-nowrap">DPWH Vol. III:</span>
-              {[
-                { id: 'C', label: 'Part C - Earthworks', color: 'amber' },
-                { id: 'D', label: 'Part D - Concrete & Reinforcement', color: 'blue' },
-                { id: 'E', label: 'Part E - Finishing & Other Civil Works', color: 'green' },
-                { id: 'F', label: 'Part F - Electrical', color: 'yellow' },
-                { id: 'G', label: 'Part G - Mechanical', color: 'purple' },
-              ].map((part) => (
+    <div className="min-h-screen bg-gray-50">
+      {/* Fixed Header - Clean Structure */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white shadow-md h-[240px]">
+        <div className="max-w-7xl mx-auto h-full flex flex-col">
+          
+          {/* Row 1: Project Title */}
+          <div className="border-b border-gray-200 px-4 py-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
                 <button
-                  key={part.id}
-                  onClick={() => {
-                    setActivePart(part.id as DPWHPart);
-                    setActiveTab('overview');
-                  }}
-                  className={`px-4 py-2 rounded-md font-medium text-sm whitespace-nowrap transition-colors ${
-                    activePart === part.id
-                      ? part.color === 'amber' ? 'bg-amber-100 text-amber-800 ring-2 ring-amber-400'
-                      : part.color === 'blue' ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400'
-                      : part.color === 'green' ? 'bg-green-100 text-green-800 ring-2 ring-green-400'
-                      : part.color === 'yellow' ? 'bg-yellow-100 text-yellow-800 ring-2 ring-yellow-400'
-                      : 'bg-purple-100 text-purple-800 ring-2 ring-purple-400'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  onClick={() => router.push('/projects')}
+                  className="text-blue-600 hover:underline text-sm"
                 >
-                  {part.label}
+                  ← Back to Projects
                 </button>
-              ))}
+                <h1 className="text-xl font-bold text-gray-900">{project.name}</h1>
+              </div>
+              {project.description && (
+                <p className="text-gray-500 text-sm truncate max-w-md">{project.description}</p>
+              )}
             </div>
           </div>
-        )}
 
-        {/* Reports Section */}
-        {sectionTab === 'reports' && (
-          <div className="mb-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg shadow-sm p-4 border border-indigo-200">
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-semibold text-indigo-700 whitespace-nowrap">Select Report:</span>
+          {/* Row 2: Parts vs Reports Tabs */}
+          <div className="border-b-2 border-gray-200">
+            <div className="flex gap-1 px-4">
               <button
-                onClick={() => setActiveGlobalView('takeoff')}
-                className={`px-5 py-2.5 rounded-md font-medium text-sm whitespace-nowrap transition-all ${
-                  activeGlobalView === 'takeoff'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-300'
+                onClick={() => {
+                  setSectionTab('parts');
+                  setActiveGlobalView(null);
+                  if (!activePart) setActivePart('D');
+                }}
+                className={`px-4 py-2 font-semibold text-sm transition-all relative ${
+                  sectionTab === 'parts'
+                    ? 'text-blue-700 bg-white border-b-2 border-blue-600 -mb-0.5'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
               >
-                📊 Takeoff Summary
+                🏗️ Parts
               </button>
               <button
-                onClick={() => setActiveGlobalView('boq')}
-                className={`px-5 py-2.5 rounded-md font-medium text-sm whitespace-nowrap transition-all ${
-                  activeGlobalView === 'boq'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-300'
+                onClick={() => {
+                  setSectionTab('reports');
+                  setActivePart(null);
+                  if (!activeGlobalView) setActiveGlobalView('takeoff');
+                }}
+                className={`px-4 py-2 font-semibold text-sm transition-all relative ${
+                  sectionTab === 'reports'
+                    ? 'text-indigo-700 bg-white border-b-2 border-indigo-600 -mb-0.5'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
               >
-                📋 Bill of Quantities
+                📊 Reports
               </button>
-              <span className="text-xs text-indigo-600 italic">• Aggregates from all DPWH parts</span>
             </div>
           </div>
-        )}
 
-        {/* Part-Specific Tabs */}
-        {sectionTab === 'parts' && (
-          <div className="mb-6 border-b border-gray-200">
-            <nav className="flex gap-4 flex-wrap">
-              {/* Part D: Concrete & Reinforcement */}
-              {activePart === 'D' && (
-                <>
+          {/* Row 3: Content Selector (DPWH Parts or Reports) */}
+          <div className="flex-1">
+            {sectionTab === 'parts' ? (
+              <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 h-full flex items-center">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-medium text-gray-600 whitespace-nowrap">DPWH Vol. III:</span>
                   {[
-                    { id: 'overview', label: 'Overview' },
-                    { id: 'grid', label: 'Grid System' },
-                    { id: 'levels', label: 'Levels' },
-                    { id: 'templates', label: 'Element Templates' },
-                    { id: 'instances', label: 'Element Instances' },
-                    { id: 'history', label: 'Calc History' },
-                  ].map((tab) => (
+                    { id: 'C', label: 'Part C - Earthworks', color: 'amber' },
+                    { id: 'D', label: 'Part D - Concrete & Reinforcement', color: 'blue' },
+                    { id: 'E', label: 'Part E - Finishing & Other Civil Works', color: 'green' },
+                    { id: 'F', label: 'Part F - Electrical', color: 'yellow' },
+                    { id: 'G', label: 'Part G - Mechanical', color: 'purple' },
+                  ].map((part) => (
                     <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as Tab)}
-                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
-                        activeTab === tab.id
-                          ? 'border-blue-500 text-blue-600'
+                      key={part.id}
+                      onClick={() => {
+                        setActivePart(part.id as DPWHPart);
+                        setActiveTab('overview');
+                      }}
+                      className={`px-3 py-1.5 rounded-md font-medium text-xs whitespace-nowrap transition-colors ${
+                        activePart === part.id
+                          ? part.color === 'amber' ? 'bg-amber-100 text-amber-800 ring-2 ring-amber-400'
+                          : part.color === 'blue' ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400'
+                          : part.color === 'green' ? 'bg-green-100 text-green-800 ring-2 ring-green-400'
+                          : part.color === 'yellow' ? 'bg-yellow-100 text-yellow-800 ring-2 ring-yellow-400'
+                          : 'bg-purple-100 text-purple-800 ring-2 ring-purple-400'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {part.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-2.5 border-b border-indigo-200 h-full flex items-center">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold text-indigo-700 whitespace-nowrap">Select Report:</span>
+                  <button
+                    onClick={() => setActiveGlobalView('takeoff')}
+                    className={`px-3 py-4 rounded-md font-medium text-xs whitespace-nowrap transition-all ${
+                      activeGlobalView === 'takeoff'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-300'
+                    }`}
+                  >
+                    📊 Takeoff Summary
+                  </button>
+                  <button
+                    onClick={() => setActiveGlobalView('boq')}
+                    className={`px-3 py-4 rounded-md font-medium text-xs whitespace-nowrap transition-all ${
+                      activeGlobalView === 'boq'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-300'
+                    }`}
+                  >
+                    📋 Bill of Quantities
+                  </button>
+                  <span className="text-xs text-indigo-600 italic">• Aggregates from all DPWH parts</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Row 4: Sub-navigation (Part-specific tabs) */}
+          <div className="border-b border-gray-200 bg-white h-[50px] flex items-center">
+            {sectionTab === 'parts' && (
+              <nav className="flex gap-2 flex-wrap px-4 w-full">
+                {activePart === 'D' && (
+                  <>
+                    {[
+                      { id: 'overview', label: 'Overview' },
+                      { id: 'grid', label: 'Grid System' },
+                      { id: 'levels', label: 'Levels' },
+                      { id: 'templates', label: 'Element Templates' },
+                      { id: 'instances', label: 'Element Instances' },
+                      { id: 'history', label: 'Calc History' },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as Tab)}
+                        className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                          activeTab === tab.id
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </>
+                )}
+
+                {activePart === 'E' && (
+                  <>
+                    <button
+                      onClick={() => setActiveTab('overview')}
+                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                        activeTab === 'overview'
+                          ? 'border-green-500 text-green-600'
                           : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      {tab.label}
+                      Overview
                     </button>
-                  ))}
-                </>
-              )}
+                    <button
+                      onClick={() => setActiveTab('spaces')}
+                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                        activeTab === 'spaces'
+                          ? 'border-green-500 text-green-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      Spaces (Mode A)
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('wallSurfaces')}
+                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                        activeTab === 'wallSurfaces'
+                          ? 'border-green-500 text-green-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      Wall Surfaces (Mode A)
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('finishes')}
+                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                        activeTab === 'finishes'
+                          ? 'border-green-500 text-green-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      Finishes (Mode A)
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('roofing')}
+                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                        activeTab === 'roofing'
+                          ? 'border-green-500 text-green-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      Roofing (Mode B)
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('schedules')}
+                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                        activeTab === 'schedules'
+                          ? 'border-green-500 text-green-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      Schedules (Mode C)
+                    </button>
+                  </>
+                )}
 
-            {/* Part E: Finishing & Other Civil Works */}
-            {activePart === 'E' && (
-              <>
-                <button
-                  onClick={() => setActiveTab('overview')}
-                  className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
-                    activeTab === 'overview'
-                      ? 'border-green-500 text-green-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Overview
-                </button>
-                <button
-                  onClick={() => setActiveTab('spaces')}
-                  className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
-                    activeTab === 'spaces'
-                      ? 'border-green-500 text-green-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Spaces (Mode A)
-                </button>
-                <button
-                  onClick={() => setActiveTab('finishes')}
-                  className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
-                    activeTab === 'finishes'
-                      ? 'border-green-500 text-green-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Finishes (Mode A)
-                </button>
-                <button
-                  onClick={() => setActiveTab('roofing')}
-                  className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
-                    activeTab === 'roofing'
-                      ? 'border-green-500 text-green-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Roofing (Mode B)
-                </button>
-                <button
-                  onClick={() => setActiveTab('schedules')}
-                  className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap ${
-                    activeTab === 'schedules'
-                      ? 'border-green-500 text-green-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Schedules (Mode C)
-                </button>
-              </>
-            )}
+                {activePart === 'C' && (
+                  <div className="py-2 px-2 text-xs text-gray-500">
+                    Coming Soon: Earthworks estimation features
+                  </div>
+                )}
 
-            {/* Part C: Earthworks (Coming Soon) */}
-            {activePart === 'C' && (
-              <div className="py-2 px-3 text-sm text-gray-500">
-                Coming Soon: Earthworks estimation features
-              </div>
-            )}
+                {activePart === 'F' && (
+                  <div className="py-2 px-2 text-xs text-gray-500">
+                    Coming Soon: Electrical estimation features
+                  </div>
+                )}
 
-            {/* Part F: Electrical (Coming Soon) */}
-            {activePart === 'F' && (
-              <div className="py-2 px-3 text-sm text-gray-500">
-                Coming Soon: Electrical estimation features
-              </div>
+                {activePart === 'G' && (
+                  <div className="py-2 px-2 text-xs text-gray-500">
+                    Coming Soon: Mechanical estimation features
+                  </div>
+                )}
+              </nav>
             )}
+          </div>
 
-            {/* Part G: Mechanical (Coming Soon) */}
-            {activePart === 'G' && (
-              <div className="py-2 px-3 text-sm text-gray-500">
-                Coming Soon: Mechanical estimation features
-              </div>
-            )}
-          </nav>
         </div>
-      )}
+      </div>
+      {/* End of Fixed Header */}
 
+      {/* Spacer to push content below fixed header */}
+      <div className="h-[240px]"></div>
+
+      {/* Main Content */}
+      <div className="px-8 pb-8">
+        <div className="max-w-7xl mx-auto">
       {/* Tab Content */}
       
       {/* Part D Content */}
@@ -629,6 +651,16 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
               />
             )}
 
+            {/* Wall Surfaces Tab */}
+            {activeTab === 'wallSurfaces' && resolvedId && (
+              <WallSurfacesManager
+                projectId={resolvedId}
+                levels={project.levels || []}
+                gridX={project.gridX || []}
+                gridY={project.gridY || []}
+              />
+            )}
+
             {/* Finishes Tab */}
             {activeTab === 'finishes' && (
               <div className="bg-white rounded-lg shadow-sm p-12 text-center">
@@ -763,6 +795,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

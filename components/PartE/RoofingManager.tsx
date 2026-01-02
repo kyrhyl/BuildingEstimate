@@ -187,21 +187,21 @@ export default function RoofingManager({ projectId }: RoofingManagerProps) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+    <div className="space-y-4">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="text-3xl">🏗️</div>
+          <div className="flex items-center gap-2">
+            <div className="text-2xl">🏗️</div>
             <div>
-              <h3 className="text-lg font-semibold text-blue-900 mb-1">Roofing System</h3>
-              <p className="text-sm text-blue-700">Design trusses and visualize framing plans</p>
+              <h3 className="text-base font-semibold text-blue-900">Roofing System</h3>
+              <p className="text-xs text-blue-700">Design trusses and visualize framing plans</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={handleSave}
               disabled={isSaving || isLoading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium transition-colors"
+              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 text-xs font-medium transition-colors"
             >
               {isSaving ? (
                 <>
@@ -222,10 +222,10 @@ export default function RoofingManager({ projectId }: RoofingManagerProps) {
       </div>
 
       <div className="border-b border-gray-200">
-        <nav className="flex gap-8">
+        <nav className="flex gap-4">
           <button
             onClick={() => setActiveTab('design')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`py-2 px-1 border-b-2 font-medium text-xs transition-colors ${
               activeTab === 'design'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -235,7 +235,7 @@ export default function RoofingManager({ projectId }: RoofingManagerProps) {
           </button>
           <button
             onClick={() => setActiveTab('plan')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`py-2 px-1 border-b-2 font-medium text-xs transition-colors ${
               activeTab === 'plan'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'

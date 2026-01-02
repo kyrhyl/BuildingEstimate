@@ -1017,11 +1017,12 @@ export async function POST(
 
     // ===================================
     // ROOFING CALCULATION (Mode B)
+    // Includes: roof covering (from roofPlanes) + structural system (from trussDesign)
     // ===================================
     let totalRoofArea = 0;
     let roofPlaneCount = 0;
 
-    if (project.roofPlanes && project.roofPlanes.length > 0) {
+    if ((project.roofPlanes && project.roofPlanes.length > 0) || project.trussDesign) {
       try {
         const roofingResult = await calculateRoofing(project);
 

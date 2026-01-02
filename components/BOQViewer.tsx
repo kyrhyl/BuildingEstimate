@@ -164,16 +164,31 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
       doc.text('SUMMARY', 14, yPos);
       yPos += 10;
 
-      const summaryData = [];
-      if (summary.trades.Concrete > 0) {
-        summaryData.push(['Concrete Works', summary.trades.Concrete.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }), 'm³']);
-      }
-      if (summary.trades.Rebar > 0) {
-        summaryData.push(['Reinforcing Steel', summary.trades.Rebar.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'kg']);
-      }
-      if (summary.trades.Formwork > 0) {
-        summaryData.push(['Formwork', summary.trades.Formwork.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'm²']);
-      }
+      const summaryData = Object.entries(summary.trades)
+        .filter(([_, qty]) => qty > 0)
+        .map(([trade, qty]) => {
+          // Determine unit and decimals based on trade
+          let unit = 'm³';
+          let decimals = 3;
+          
+          // Find a sample BOQ line for this trade to get the actual unit
+          const sampleLine = boqLines.find(line => line.tags.some(tag => tag === `trade:${trade}`));
+          if (sampleLine) {
+            unit = sampleLine.unit;
+            decimals = unit === 'kg' ? 2 : 3;
+          }
+          
+          return [
+            trade === 'Concrete' ? 'Concrete Works' : 
+            trade === 'Rebar' ? 'Reinforcing Steel' :
+            trade === 'Formwork' ? 'Formwork' :
+            trade === 'Roofing' ? 'Roofing Works' :
+            trade === 'Finishes' ? 'Finishing Works' :
+            `${trade} Works`,
+            qty.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }),
+            unit
+          ];
+        });
 
       autoTable(doc, {
         startY: yPos,
@@ -188,9 +203,11 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
     }
 
     // BOQ Items by Trade
-    const trades = ['Concrete', 'Rebar', 'Formwork'];
+    const uniqueTrades = [...new Set(boqLines.flatMap(line => 
+      line.tags.filter(tag => tag.startsWith('trade:')).map(tag => tag.replace('trade:', ''))
+    ))].sort();
     
-    for (const trade of trades) {
+    for (const trade of uniqueTrades) {
       const tradeLines = boqLines.filter(line => line.tags.some(tag => tag === `trade:${trade}`));
       if (tradeLines.length === 0) continue;
 
@@ -202,7 +219,16 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
 
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      const tradeColor: [number, number, number] = trade === 'Concrete' ? [59, 130, 246] : trade === 'Rebar' ? [249, 115, 22] : [168, 85, 247];
+      const tradeColorMap: Record<string, [number, number, number]> = {
+        'Concrete': [59, 130, 246],
+        'Rebar': [249, 115, 22],
+        'Formwork': [168, 85, 247],
+        'Roofing': [220, 38, 38],
+        'Finishes': [34, 197, 94],
+        'Plumbing': [14, 165, 233],
+        'Carpentry': [161, 98, 7],
+      };
+      const tradeColor: [number, number, number] = tradeColorMap[trade] || [107, 114, 128];
       doc.setTextColor(tradeColor[0], tradeColor[1], tradeColor[2]);
       doc.text(`${trade.toUpperCase()} - DPWH ITEMS`, 14, yPos);
       doc.setTextColor(0, 0, 0);
@@ -214,7 +240,10 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
         // Get element type breakdown
         const elementTypes: Record<string, number> = {};
         sourceLines.forEach(source => {
-          const typeTag = source.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') || 'unknown';
+          const typeTag = source.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') 
+            || source.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
+            || source.tags.find(tag => tag.startsWith('category:'))?.replace('category:', '')
+            || source.trade.toLowerCase();
           elementTypes[typeTag] = (elementTypes[typeTag] || 0) + 1;
         });
         const elementBreakdown = Object.entries(elementTypes)
@@ -287,8 +316,13 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
 
       // Source lines table
       const sourceData = sourceLines.map(source => {
-        const templateTag = source.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'Unknown';
-        const levelTag = source.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'Unknown';
+        const templateTag = source.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') 
+          || source.tags.find(tag => tag.startsWith('finish:'))?.replace('finish:', '')
+          || source.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
+          || 'N/A';
+        const levelTag = source.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
+          || source.tags.find(tag => tag.startsWith('space:'))?.replace('space:', '')
+          || 'N/A';
         
         return [
           templateTag,
@@ -519,8 +553,14 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
                               <h5 className="font-semibold text-sm text-gray-700">Source Takeoff Lines:</h5>
                               <div className="space-y-2">
                                 {sourceLines.map((source) => {
-                                  const templateTag = source.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'Unknown';
-                                  const levelTag = source.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'Unknown';
+                                  const templateTag = source.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') 
+                                    || source.tags.find(tag => tag.startsWith('finish:'))?.replace('finish:', '')
+                                    || source.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
+                                    || source.tags.find(tag => tag.startsWith('section:'))?.replace('section:', '')
+                                    || source.resourceKey.split('-')[0] || 'N/A';
+                                  const levelTag = source.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
+                                    || source.tags.find(tag => tag.startsWith('space:'))?.replace('space:', '')
+                                    || 'N/A';
                                   
                                   return (
                                     <div key={source.id} className="bg-white border border-gray-200 rounded p-3">

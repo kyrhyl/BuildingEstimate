@@ -1,5 +1,5 @@
 import mongoose, { Schema, Model } from 'mongoose';
-import type { ProjectModel, ProjectSettings, GridLine, Level, ElementTemplate, ElementInstance, Space, Opening, FinishType, SpaceFinishAssignment, RoofType, RoofPlane, ScheduleItem } from '@/types';
+import type { ProjectModel, ProjectSettings, GridLine, Level, ElementTemplate, ElementInstance, Space, Opening, FinishType, SpaceFinishAssignment, WallSurface, RoofType, RoofPlane, ScheduleItem } from '@/types';
 
 // Default project settings
 const defaultSettings: ProjectSettings = {
@@ -90,7 +90,8 @@ const SpaceSchema = new Schema<Space>({
 const OpeningSchema = new Schema<Opening>({
   id: { type: String, required: true },
   levelId: { type: String, required: true },
-  spaceId: String, // optional - can be global to level
+  spaceId: String, // optional - for space-based calculations (legacy)
+  wallSurfaceId: String, // optional - for wall surface-based calculations
   type: { type: String, enum: ['door', 'window', 'vent', 'louver', 'other'], required: true },
   width_m: { type: Number, required: true },
   height_m: { type: Number, required: true },
@@ -132,6 +133,28 @@ const SpaceFinishAssignmentSchema = new Schema<SpaceFinishAssignment>({
     height_m: Number,
     wastePercent: Number,
   },
+});
+
+const WallSurfaceSchema = new Schema<WallSurface>({
+  id: { type: String, required: true },
+  name: { type: String, required: true },
+  gridLine: {
+    axis: { type: String, enum: ['X', 'Y'], required: true },
+    label: { type: String, required: true },
+    span: { type: [String], required: true }, // [startLabel, endLabel]
+  },
+  levelStart: { type: String, required: true },
+  levelEnd: { type: String, required: true },
+  surfaceType: { type: String, enum: ['exterior', 'interior', 'both'], required: true },
+  facing: { type: String, enum: ['north', 'south', 'east', 'west'] },
+  computed: {
+    length_m: { type: Number, default: 0 },
+    height_m: { type: Number, default: 0 },
+    grossArea_m2: { type: Number, default: 0 },
+    sidesCount: { type: Number, default: 1 },
+    totalArea_m2: { type: Number, default: 0 },
+  },
+  tags: [String],
 });
 
 // ===================================
@@ -318,6 +341,7 @@ const ProjectSchema = new Schema<ProjectModel>(
     openings: [OpeningSchema],
     finishTypes: [FinishTypeSchema],
     spaceFinishAssignments: [SpaceFinishAssignmentSchema],
+    wallSurfaces: [WallSurfaceSchema],
     // Roofing (Mode B)
     trussDesign: TrussDesignSchema,
     roofTypes: [RoofTypeSchema],

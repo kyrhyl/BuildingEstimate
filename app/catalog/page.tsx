@@ -15,18 +15,46 @@ export default function CatalogPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [catalogVersion, setCatalogVersion] = useState('');
+  const [categories, setCategories] = useState<string[]>([]);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTrade, setSelectedTrade] = useState<Trade | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
-  const trades: Array<Trade | 'all'> = ['all', 'Concrete', 'Rebar', 'Formwork'];
-  const categories = ['all', 'Concrete Works', 'Reinforcing Steel', 'Formwork and Falsework'];
+  const trades: Array<Trade | 'all'> = [
+    'all', 
+    'Concrete', 
+    'Rebar', 
+    'Formwork',
+    'Roofing',
+    'Finishes',
+    'Plumbing',
+    'Carpentry',
+    'Hardware',
+    'Doors & Windows',
+    'Other'
+  ];
+
+  useEffect(() => {
+    fetchCatalogStats();
+  }, []);
 
   useEffect(() => {
     fetchCatalog();
   }, [searchQuery, selectedTrade, selectedCategory]);
+
+  const fetchCatalogStats = async () => {
+    try {
+      const response = await fetch('/api/catalog', { method: 'POST' });
+      const result = await response.json();
+      if (result.success) {
+        setCategories(result.data.categories.sort());
+      }
+    } catch (err) {
+      console.error('Failed to fetch catalog stats:', err);
+    }
+  };
 
   const fetchCatalog = async () => {
     try {
@@ -111,9 +139,10 @@ export default function CatalogPage() {
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
+                <option value="all">All Categories</option>
                 {categories.map((cat) => (
                   <option key={cat} value={cat}>
-                    {cat === 'all' ? 'All Categories' : cat}
+                    {cat}
                   </option>
                 ))}
               </select>
