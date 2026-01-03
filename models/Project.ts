@@ -306,7 +306,16 @@ const ScheduleItemSchema = new Schema<ScheduleItem>({
   id: { type: String, required: true },
   category: { 
     type: String, 
-    enum: ['termite-control', 'drainage', 'plumbing', 'carpentry', 'hardware', 'doors', 'windows', 'glazing', 'waterproofing', 'cladding', 'insulation', 'acoustical', 'other'],
+    enum: [
+      // Part E - Finishing items
+      'termite-control', 'drainage', 'plumbing', 'carpentry', 'hardware', 
+      'doors', 'windows', 'glazing', 'waterproofing', 'cladding', 
+      'insulation', 'acoustical', 'other',
+      // Part C - Earthworks items
+      'earthworks-clearing', 'earthworks-removal-trees', 'earthworks-removal-structures',
+      'earthworks-excavation', 'earthworks-structure-excavation', 'earthworks-embankment',
+      'earthworks-site-development'
+    ],
     required: true 
   },
   dpwhItemNumberRaw: { type: String, required: true },

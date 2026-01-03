@@ -360,6 +360,13 @@ export interface ScheduleItem {
   qty: number;
   basisNote: string; // e.g., "per door schedule", "lump sum as per plans"
   tags: string[]; // e.g., ["level:2F", "zone:admin", "type:flush-door"]
+  
+  // Optional fields for doors & windows (auto-calculate qty = width * height * quantity)
+  mark?: string; // D1, D2, W1, W2, etc.
+  width_m?: number; // width in meters
+  height_m?: number; // height in meters
+  quantity?: number; // number of doors/windows of this mark
+  location?: string; // placement location or remarks
 }
 
 // ===================================

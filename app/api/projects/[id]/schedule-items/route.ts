@@ -50,9 +50,12 @@ export async function POST(
     const { id } = await params;
     const body = await request.json();
 
+    console.log('Creating schedule item:', { projectId: id, category: body.category, item: body.dpwhItemNumberRaw });
+
     // Validate DPWH item exists in catalog
     const catalogItem = catalog.items.find((item: { itemNumber: string; unit: string }) => item.itemNumber === body.dpwhItemNumberRaw);
     if (!catalogItem) {
+      console.error('Item not found in catalog:', body.dpwhItemNumberRaw);
       return NextResponse.json(
         { error: `DPWH item "${body.dpwhItemNumberRaw}" not found in catalog` },
         { status: 400 }
@@ -61,6 +64,7 @@ export async function POST(
 
     // Validate unit matches catalog
     if (catalogItem.unit !== body.unit) {
+      console.error('Unit mismatch:', { expected: catalogItem.unit, received: body.unit });
       return NextResponse.json(
         { error: `Unit mismatch: expected "${catalogItem.unit}" but got "${body.unit}"` },
         { status: 400 }
@@ -69,6 +73,7 @@ export async function POST(
 
     const project = await Project.findById(id);
     if (!project) {
+      console.error('Project not found:', id);
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
@@ -81,6 +86,12 @@ export async function POST(
       qty: body.qty,
       basisNote: body.basisNote,
       tags: body.tags || [],
+      // Optional door/window fields
+      mark: body.mark,
+      width_m: body.width_m,
+      height_m: body.height_m,
+      quantity: body.quantity,
+      location: body.location,
     };
 
     if (!project.scheduleItems) {
@@ -90,10 +101,14 @@ export async function POST(
 
     await project.save();
 
+    console.log('Schedule item created successfully:', newItem.id);
     return NextResponse.json({ scheduleItem: newItem }, { status: 201 });
   } catch (error) {
     console.error('Error creating schedule item:', error);
-    return NextResponse.json({ error: 'Failed to create schedule item' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Failed to create schedule item',
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
   }
 }
 
