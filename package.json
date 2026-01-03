@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "db:seed": "npx tsx scripts/seed-database.ts",
+    "db:clear": "npx tsx scripts/clear-database.ts"
   },
   "dependencies": {
     "@types/uuid": "^10.0.0",
