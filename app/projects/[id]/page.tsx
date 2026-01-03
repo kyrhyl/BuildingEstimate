@@ -12,6 +12,7 @@ import BOQViewer from '@/components/BOQViewer';
 import CalcRunHistory from '@/components/CalcRunHistory';
 import SpacesManager from '@/components/PartE/SpacesManager';
 import WallSurfacesManager from '@/components/PartE/WallSurfacesManager';
+import FinishesManager from '@/components/PartE/FinishesManager';
 import RoofingManager from '@/components/PartE/RoofingManager';
 
 interface ProjectDetailPageProps {
@@ -662,12 +663,12 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
             )}
 
             {/* Finishes Tab */}
-            {activeTab === 'finishes' && (
-              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-                <div className="text-gray-400 text-5xl mb-4">🎨</div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Finishes Management</h3>
-                <p className="text-gray-600">Coming soon - Assign floor, wall, and ceiling finishes to spaces</p>
-              </div>
+            {activeTab === 'finishes' && resolvedId && (
+              <FinishesManager 
+                projectId={resolvedId}
+                gridX={project.gridX || []}
+                gridY={project.gridY || []}
+              />
             )}
 
             {/* Roofing Tab */}

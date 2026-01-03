@@ -35,6 +35,7 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [selectedLevelFilter, setSelectedLevelFilter] = useState<string>(levels[0]?.label || '');
   const [formData, setFormData] = useState({
     name: '',
     levelId: '',
@@ -112,7 +113,7 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
     }
   };
 
-  const totalFloorArea = spaces.reduce((sum, s) => sum + (s.computed?.floorArea_m2 || 0), 0);
+  const totalFloorArea = spaces.reduce((sum, s) => sum + (s.computed?.area_m2 || 0), 0);
 
   // Floor Plan Visualization Component
   const FloorPlanVisualization = () => {
@@ -191,7 +192,9 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
         })}
 
         {/* Spaces */}
-        {spaces.map((space) => {
+        {spaces
+          .filter(space => space.levelId === selectedLevelFilter)
+          .map((space) => {
           const isSelected = space.id === selectedSpaceId;
           
           if (!space.boundary?.data?.gridX || !space.boundary?.data?.gridY) return null;
@@ -251,7 +254,7 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                 dominantBaseline="middle"
                 style={{ pointerEvents: 'none' }}
               >
-                {space.computed?.floorArea_m2?.toFixed(1)}m²
+                {space.computed?.area_m2?.toFixed(1)}m²
               </text>
             </g>
           );
@@ -388,12 +391,29 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
 
         {/* Right Column: Floor Plan Visualization */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col">
-          <h3 className="font-semibold text-lg mb-4">Floor Plan View</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg">Floor Plan View</h3>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Level:</label>
+              <select
+                value={selectedLevelFilter}
+                onChange={(e) => setSelectedLevelFilter(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              >
+                {levels.map((level) => (
+                  <option key={level.label} value={level.label}>
+                    {level.label} ({level.elevation}m)
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="flex-1 flex items-center justify-center">
             <FloorPlanVisualization />
           </div>
           <p className="text-xs text-gray-500 text-center mt-3">
             Click on a space to select it
+            <span className="text-green-600 font-medium"> • Showing: {selectedLevelFilter}</span>
           </p>
         </div>
       </div>
@@ -426,52 +446,71 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grid Bounds</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Floor Area (m²)</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Wall Area (m²)</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ceiling Area (m²)</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dimensions (m)</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Area (m²)</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Perimeter (m)</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {spaces.map((space) => (
-                  <tr 
-                    key={space.id} 
-                    className={`transition-colors cursor-pointer ${
-                      selectedSpaceId === space.id ? 'bg-green-50' : 'hover:bg-gray-50'
-                    }`}
-                    onClick={() => setSelectedSpaceId(space.id)}
-                  >
-                    <td className="px-4 py-3">
-                      <span className="font-medium text-gray-900">{space.name}</span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{space.levelId}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {space.boundary?.data?.gridX?.join(' - ')} × {space.boundary?.data?.gridY?.join(' - ')}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="font-semibold text-green-600">
-                        {space.computed?.floorArea_m2?.toFixed(2) || '0.00'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm text-gray-600">
-                      {space.computed?.wallArea_m2?.toFixed(2) || '0.00'}
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm text-gray-600">
-                      {space.computed?.ceilingArea_m2?.toFixed(2) || '0.00'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(space.id);
-                        }}
-                        className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {spaces.map((space) => {
+                  // Calculate dimensions from grid bounds
+                  let dimensions = '';
+                  if (space.boundary?.type === 'gridRect' && space.boundary?.data?.gridX && space.boundary?.data?.gridY) {
+                    const [xStart, xEnd] = space.boundary.data.gridX;
+                    const [yStart, yEnd] = space.boundary.data.gridY;
+                    const xStartLine = gridX.find(g => g.label === xStart);
+                    const xEndLine = gridX.find(g => g.label === xEnd);
+                    const yStartLine = gridY.find(g => g.label === yStart);
+                    const yEndLine = gridY.find(g => g.label === yEnd);
+                    
+                    if (xStartLine && xEndLine && yStartLine && yEndLine) {
+                      const width = Math.abs(xEndLine.offset - xStartLine.offset);
+                      const length = Math.abs(yEndLine.offset - yStartLine.offset);
+                      dimensions = `${width.toFixed(2)} × ${length.toFixed(2)}`;
+                    }
+                  }
+
+                  return (
+                    <tr 
+                      key={space.id} 
+                      className={`transition-colors cursor-pointer ${
+                        selectedSpaceId === space.id ? 'bg-green-50' : 'hover:bg-gray-50'
+                      }`}
+                      onClick={() => setSelectedSpaceId(space.id)}
+                    >
+                      <td className="px-4 py-3">
+                        <span className="font-medium text-gray-900">{space.name}</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{space.levelId}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {space.boundary?.data?.gridX?.join(' - ')} × {space.boundary?.data?.gridY?.join(' - ')}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {dimensions || 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="font-semibold text-green-600">
+                          {space.computed?.area_m2?.toFixed(2) || '0.00'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-600">
+                        {space.computed?.perimeter_m?.toFixed(2) || '0.00'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(space.id);
+                          }}
+                          className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

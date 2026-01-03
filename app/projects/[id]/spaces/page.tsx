@@ -16,6 +16,7 @@ export default function SpacesPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingSpace, setEditingSpace] = useState<Space | null>(null);
+  const [selectedLevelFilter, setSelectedLevelFilter] = useState<string>('all');
 
   // Form state
   const [formData, setFormData] = useState({
