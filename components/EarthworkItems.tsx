@@ -57,7 +57,7 @@ export default function EarthworkItems({ projectId, category, title, description
       const res = await fetch('/api/catalog?limit=5000');
       if (res.ok) {
         const response = await res.json();
-        const allResults: CatalogItem[] = response.data || response || [];
+        const allResults: CatalogItem[] = response.items || [];
         
         // Filter to Earthwork trade only (Part C - 800 series)
         let earthworkResults = allResults.filter(item => 

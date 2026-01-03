@@ -1,3 +1,6 @@
+// Set up test environment variables
+process.env.MONGODB_URI = 'mongodb://localhost:27017/test-db';
+
 // Mock uuid module for Jest
 let counter = 0;
 jest.mock('uuid', () => ({

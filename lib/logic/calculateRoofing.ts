@@ -12,6 +12,7 @@ import type { ProjectModel, TakeoffLine, RoofPlane, RoofType, GridLine } from '@
 import { computeRoofPlaneGeometry, computeRoofCoverTakeoff } from '@/lib/math/roofing';
 import { calculateRoofFraming, type FramingParameters, roofingMaterials } from '@/lib/math/roofing/framing';
 import { generateTruss } from '@/lib/math/roofing/truss';
+import { DEFAULT_ROOFING_DPWH_MAPPINGS, ROOFING_CONSTANTS } from '@/lib/config/roofingDPWH';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface RoofingCalculationResult {
@@ -100,11 +101,11 @@ export async function calculateRoofing(
   if (project.trussDesign) {
     try {
       const trussDesign = project.trussDesign;
-      const mappings = trussDesign.dpwhItemMappings || {};
+      const mappings = trussDesign.dpwhItemMappings || DEFAULT_ROOFING_DPWH_MAPPINGS;
 
       // Calculate truss weight
       if (trussDesign.trussParams && trussDesign.buildingLength_mm) {
-        const trussResult = generateTruss(trussDesign.trussParams as any); // Type cast for plateThickness
+        const trussResult = generateTruss(trussDesign.trussParams);
         const trussCount = Math.ceil(trussDesign.buildingLength_mm / trussDesign.trussParams.spacing_mm) + 1;
         const totalTrussWeight = trussResult.summary.totalWeight_kg * trussCount;
         totalTrussWeight_kg = totalTrussWeight;
@@ -314,8 +315,8 @@ export async function calculateRoofing(
             unit: 'Kilogram'
           };
 
-          // Estimate 0.05 kg per bolt assembly
-          const boltsWeight_kg = framingResult.accessories.boltsAndNuts * 0.05;
+          // Use centralized constant for bolt weight
+          const boltsWeight_kg = framingResult.accessories.boltsAndNuts * ROOFING_CONSTANTS.BOLT_WEIGHT_KG;
 
           takeoffLines.push({
             id: uuidv4(),
@@ -327,7 +328,7 @@ export async function calculateRoofing(
             formulaText: `${framingResult.accessories.boltsAndNuts} bolts × 0.05 kg = ${Math.round(boltsWeight_kg * 100) / 100} kg`,
             inputsSnapshot: {
               boltCount: framingResult.accessories.boltsAndNuts,
-              weightPerBolt_kg: 0.05,
+              weightPerBolt_kg: ROOFING_CONSTANTS.BOLT_WEIGHT_KG,
             },
             tags: [
               `dpwh:${boltsMapping.dpwhItemNumberRaw}`,
@@ -336,7 +337,7 @@ export async function calculateRoofing(
             ],
             assumptions: [
               `Total bolts: ${framingResult.accessories.boltsAndNuts} pieces`,
-              `Estimated weight: 0.05 kg per bolt assembly`
+              `Estimated weight: ${ROOFING_CONSTANTS.BOLT_WEIGHT_KG} kg per bolt assembly`
             ],
           });
         }

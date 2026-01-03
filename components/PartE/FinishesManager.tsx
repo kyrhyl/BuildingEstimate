@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { FinishType, Space, SpaceFinishAssignment, DPWHCatalogItem, GridLine } from '@/types';
+import type { FinishType, Space, SpaceFinishAssignment, WallSurface, WallSurfaceFinishAssignment, DPWHCatalogItem, GridLine } from '@/types';
 
 interface FinishesManagerProps {
   projectId: string;
@@ -14,8 +14,8 @@ export default function FinishesManager({ projectId, gridX, gridY }: FinishesMan
   const [finishTypes, setFinishTypes] = useState<FinishType[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [assignments, setAssignments] = useState<SpaceFinishAssignment[]>([]);
-  const [wallSurfaces, setWallSurfaces] = useState<any[]>([]);
-  const [wallAssignments, setWallAssignments] = useState<any[]>([]);
+  const [wallSurfaces, setWallSurfaces] = useState<WallSurface[]>([]);
+  const [wallAssignments, setWallAssignments] = useState<WallSurfaceFinishAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateTypeForm, setShowCreateTypeForm] = useState(false);
   const [catalogItems, setCatalogItems] = useState<DPWHCatalogItem[]>([]);

@@ -5,49 +5,8 @@
 
 import type { DPWHItemMapping } from '@/types';
 
-// Default DPWH Item Mappings for Roof Framing Components
-export const DEFAULT_DPWH_MAPPINGS = {
-  trussSteel: {
-    dpwhItemNumberRaw: '1047 (8) a',
-    description: 'Structural Steel Trusses',
-    unit: 'Kilogram'
-  } as DPWHItemMapping,
-  purlinSteel: {
-    dpwhItemNumberRaw: '1047 (8) b',
-    description: 'Structural Steel Purlins',
-    unit: 'Kilogram'
-  } as DPWHItemMapping,
-  bracingSteel: {
-    dpwhItemNumberRaw: '1047 (4) b',
-    description: 'Metal Structure Accessories Turnbuckle',
-    unit: 'Each'
-  } as DPWHItemMapping,
-  sagRods: {
-    dpwhItemNumberRaw: '1047 (5) b',
-    description: 'Metal Structure Accessories Sagrods',
-    unit: 'Kilogram'
-  } as DPWHItemMapping,
-  boltsAndRods: {
-    dpwhItemNumberRaw: '1047 (5) a',
-    description: 'Metal Structure Accessories Bolts and Rods',
-    unit: 'Kilogram'
-  } as DPWHItemMapping,
-  steelPlates: {
-    dpwhItemNumberRaw: '1047 (5) d',
-    description: 'Metal Structure Accessories Steel Plates',
-    unit: 'Kilogram'
-  } as DPWHItemMapping,
-  roofingSheets: {
-    dpwhItemNumberRaw: '1013 (1)',
-    description: 'Corrugated Metal Roofing Gauge 26 (0.551 mm)',
-    unit: 'Square Meter'
-  } as DPWHItemMapping,
-  ridgeCap: {
-    dpwhItemNumberRaw: '1013 (2) a',
-    description: 'Fabricated Metal Roofing Accessory Gauge 26 (0.551 mm) Ridge/Hip Rolls',
-    unit: 'Linear Meter'
-  } as DPWHItemMapping,
-};
+// Re-export for backward compatibility
+export { DEFAULT_ROOFING_DPWH_MAPPINGS as DEFAULT_DPWH_MAPPINGS } from '@/lib/config/roofingDPWH';
 
 export interface RoofingMaterial {
   type: string;

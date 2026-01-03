@@ -1,27 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-
-interface Space {
-  id: string;
-  name: string;
-  levelId: string;
-  boundary: any;
-  computed: {
-    area_m2: number;
-    perimeter_m: number;
-  };
-}
-
-interface GridLine {
-  label: string;
-  offset: number;
-}
-
-interface Level {
-  label: string;
-  elevation: number;
-}
+import type { Space, GridLine, Level } from '@/types';
 
 interface SpacesManagerProps {
   projectId: string;
@@ -196,10 +176,12 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
           .map((space) => {
           const isSelected = space.id === selectedSpaceId;
           
-          if (!space.boundary?.data?.gridX || !space.boundary?.data?.gridY) return null;
+          // Type guard: ensure boundary is GridRectBoundary type
+          if (!space.boundary?.data || !('gridX' in space.boundary.data) || !('gridY' in space.boundary.data)) return null;
+          const boundaryData = space.boundary.data as { gridX: [string, string]; gridY: [string, string] };
 
-          const [xStart, xEnd] = space.boundary.data.gridX;
-          const [yStart, yEnd] = space.boundary.data.gridY;
+          const [xStart, xEnd] = boundaryData.gridX;
+          const [yStart, yEnd] = boundaryData.gridY;
 
           const xStartGrid = gridX.find(g => g.label === xStart);
           const xEndGrid = gridX.find(g => g.label === xEnd);
@@ -290,28 +272,28 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
       </div>
 
       {/* Top Row: Create Form + Floor Plan */}
-      <div className="grid grid-cols-2 gap-6" style={{ height: '600px' }}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column: Create Form */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 overflow-y-auto">
-          <h3 className="font-semibold text-base mb-3">Create New Space</h3>
-          <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="font-semibold text-lg mb-4">Create New Space</h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Space Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Space Name</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="e.g., Living Room, Bedroom 1"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Level</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
               <select
                 value={formData.levelId}
                 onChange={(e) => setFormData({ ...formData, levelId: e.target.value })}
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 required
               >
                 <option value="">Select Level</option>
@@ -320,13 +302,13 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                 ))}
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">X Start</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">From Grid Y</label>
                 <select
-                  value={formData.gridXStart}
-                  onChange={(e) => setFormData({ ...formData, gridXStart: e.target.value })}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  value={formData.gridYStart}
+                  onChange={(e) => setFormData({ ...formData, gridYStart: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   required
                 >
                   <option value="">Select</option>
@@ -336,11 +318,11 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">X End</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">To Grid X</label>
                 <select
                   value={formData.gridXEnd}
                   onChange={(e) => setFormData({ ...formData, gridXEnd: e.target.value })}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   required
                 >
                   <option value="">Select</option>
@@ -364,11 +346,11 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Y End</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">To Grid Y</label>
                 <select
                   value={formData.gridYEnd}
                   onChange={(e) => setFormData({ ...formData, gridYEnd: e.target.value })}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   required
                 >
                   <option value="">Select</option>
@@ -381,7 +363,7 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
 
             <button
               type="submit"
-              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm shadow-sm transition-colors"
+              className="w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-sm transition-colors"
             >
               Create Space
             </button>
@@ -389,7 +371,7 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
         </div>
 
         {/* Right Column: Floor Plan Visualization */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg">Floor Plan View</h3>
             <div className="flex items-center gap-2">
@@ -407,7 +389,7 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
               </select>
             </div>
           </div>
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center justify-center">
             <FloorPlanVisualization />
           </div>
           <p className="text-xs text-gray-500 text-center mt-3">
@@ -455,9 +437,10 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                 {spaces.map((space) => {
                   // Calculate dimensions from grid bounds
                   let dimensions = '';
-                  if (space.boundary?.type === 'gridRect' && space.boundary?.data?.gridX && space.boundary?.data?.gridY) {
-                    const [xStart, xEnd] = space.boundary.data.gridX;
-                    const [yStart, yEnd] = space.boundary.data.gridY;
+                  if (space.boundary?.type === 'gridRect' && space.boundary?.data && 'gridX' in space.boundary.data && 'gridY' in space.boundary.data) {
+                    const boundaryData = space.boundary.data as { gridX: [string, string]; gridY: [string, string] };
+                    const [xStart, xEnd] = boundaryData.gridX;
+                    const [yStart, yEnd] = boundaryData.gridY;
                     const xStartLine = gridX.find(g => g.label === xStart);
                     const xEndLine = gridX.find(g => g.label === xEnd);
                     const yStartLine = gridY.find(g => g.label === yStart);
@@ -483,7 +466,9 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                       </td>
                       <td className="px-4 py-3 text-center text-sm text-gray-600">{space.levelId}</td>
                       <td className="px-4 py-3 text-center text-sm text-gray-600">
-                        {space.boundary?.data?.gridX?.join(' - ')} × {space.boundary?.data?.gridY?.join(' - ')}
+                        {space.boundary?.data && 'gridX' in space.boundary.data && 'gridY' in space.boundary.data 
+                          ? `${space.boundary.data.gridX.join(' - ')} × ${space.boundary.data.gridY.join(' - ')}` 
+                          : 'N/A'}
                       </td>
                       <td className="px-4 py-3 text-center text-sm font-medium text-gray-700">
                         {dimensions || 'N/A'}

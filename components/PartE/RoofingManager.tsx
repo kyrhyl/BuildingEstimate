@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { generateTruss, calculateTrussQuantity, calculateTotalTrussQuantities, type TrussType, type TrussParameters, type TrussResult, type PlateThickness } from '@/lib/math/roofing/truss';
-import { calculateRoofFraming, roofingMaterials, purlinSections, DEFAULT_DPWH_MAPPINGS, type FramingParameters, type FramingResult, type BracingConfiguration } from '@/lib/math/roofing/framing';
+import { calculateTrussDesign, type TrussDesignInput } from '@/lib/logic/calculateTrusses';
+import { calculateTrussQuantity } from '@/lib/math/roofing/truss';
+import { roofingMaterials, purlinSections, DEFAULT_DPWH_MAPPINGS, type FramingParameters, type FramingResult, type BracingConfiguration } from '@/lib/math/roofing/framing';
+import type { TrussType, TrussParameters, TrussResult, PlateThickness } from '@/lib/math/roofing/truss';
 import type { DPWHItemMapping } from '@/types';
 import TrussVisualization from './TrussVisualization';
 import FramingPlanVisualization from './FramingPlanVisualization';
@@ -118,42 +120,29 @@ export default function RoofingManager({ projectId }: RoofingManagerProps) {
     loadCatalog();
   }, []);
 
+  // Calculate truss design using logic layer service
   useEffect(() => {
     try {
-      const result = generateTruss(trussParams);
-      setTrussResult(result);
-    } catch (error) {
-      console.error('Error generating truss:', error);
-      setTrussResult(null);
-    }
-  }, [trussParams]);
-
-  // Calculate framing when parameters change
-  useEffect(() => {
-    if (!trussResult) return;
-    
-    try {
-      const trussQty = calculateTrussQuantity(buildingLength_mm, trussParams.spacing_mm);
-      const fullFramingParams: FramingParameters = {
-        trussSpan_mm: trussParams.span_mm,
-        trussSpacing_mm: trussParams.spacing_mm,
+      const designInput: TrussDesignInput = {
+        trussParams,
         buildingLength_mm,
-        trussQuantity: trussQty,
-        roofingMaterial: framingParams.roofingMaterial!,
-        purlinSpacing_mm: framingParams.purlinSpacing_mm!,
-        purlinSpec: framingParams.purlinSpec!,
-        bracing: framingParams.bracing!,
-        includeRidgeCap: framingParams.includeRidgeCap!,
-        includeEaveGirt: framingParams.includeEaveGirt!,
+        framingParams,
       };
       
-      const result = calculateRoofFraming(fullFramingParams);
-      setFramingResult(result);
+      const result = calculateTrussDesign(designInput);
+      setTrussResult(result.truss);
+      setFramingResult(result.framing || null);
+      
+      // Log warnings if any
+      if (result.warnings.length > 0) {
+        console.warn('Truss design warnings:', result.warnings);
+      }
     } catch (error) {
-      console.error('Error calculating framing:', error);
+      console.error('Error calculating truss design:', error);
+      setTrussResult(null);
       setFramingResult(null);
     }
-  }, [trussResult, buildingLength_mm, trussParams.spacing_mm, trussParams.span_mm, framingParams]);
+  }, [trussParams, buildingLength_mm, framingParams]);
 
   // Manual save function
   const handleSave = async () => {

@@ -96,7 +96,7 @@ export default function StructureExcavation({ projectId }: StructureExcavationPr
       const res = await fetch('/api/catalog?limit=5000');
       if (res.ok) {
         const response = await res.json();
-        const allResults: CatalogItem[] = response.data || response || [];
+        const allResults: CatalogItem[] = response.items || [];
         
         // Filter to structure excavation items (Part C - 800 series)
         const structureExcavationItems = allResults.filter(item =>

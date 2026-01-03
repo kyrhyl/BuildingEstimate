@@ -1,68 +1,43 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Project from '@/models/Project';
+import { withErrorHandler, successResponse, validateRequest, APIErrorClass, ErrorCode } from '@/lib/api/validation';
+import { createProjectSchema } from '@/lib/api/schemas';
 
 /**
  * GET /api/projects
  * List all projects
  */
-export async function GET() {
-  try {
-    await dbConnect();
-    const projects = await Project.find({})
-      .select('name description createdAt updatedAt')
-      .sort({ updatedAt: -1 });
-    
-    return NextResponse.json({ 
-      success: true, 
-      data: projects 
-    });
-  } catch (error) {
-    console.error('Error fetching projects:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch projects' },
-      { status: 500 }
-    );
-  }
-}
+export const GET = withErrorHandler(async () => {
+  await dbConnect();
+  
+  const projects = await Project.find({})
+    .select('name description createdAt updatedAt')
+    .sort({ updatedAt: -1 });
+  
+  return successResponse(projects);
+});
 
 /**
  * POST /api/projects
  * Create a new project
  */
-export async function POST(request: NextRequest) {
-  try {
-    await dbConnect();
-    const body = await request.json();
-    
-    // Validation
-    if (!body.name || body.name.trim() === '') {
-      return NextResponse.json(
-        { success: false, error: 'Project name is required' },
-        { status: 400 }
-      );
-    }
+export const POST = withErrorHandler(async (request: NextRequest) => {
+  await dbConnect();
+  
+  // Validate request body
+  const validatedData = await validateRequest(request, createProjectSchema);
 
-    const project = await Project.create({
-      name: body.name,
-      description: body.description || '',
-      // settings will use default from schema
-      gridX: [],
-      gridY: [],
-      levels: [],
-      elementTemplates: [],
-      elementInstances: [],
-    });
+  const project = await Project.create({
+    name: validatedData.name,
+    description: validatedData.description,
+    // settings will use default from schema
+    gridX: [],
+    gridY: [],
+    levels: [],
+    elementTemplates: [],
+    elementInstances: [],
+  });
 
-    return NextResponse.json(
-      { success: true, data: project },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error('Error creating project:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to create project' },
-      { status: 500 }
-    );
-  }
-}
+  return successResponse(project, 201);
+});

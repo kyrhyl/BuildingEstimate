@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Project from '@/models/Project';
+import { withErrorHandler, successResponse, validateRequest, validateObjectId, APIErrorClass, ErrorCode } from '@/lib/api/validation';
+import { updateProjectSchema } from '@/lib/api/schemas';
 
 type Params = {
   params: Promise<{ id: string }>;
@@ -10,96 +12,61 @@ type Params = {
  * GET /api/projects/:id
  * Get a single project by ID
  */
-export async function GET(request: NextRequest, { params }: Params) {
-  try {
-    await dbConnect();
-    const { id } = await params;
-    
-    const project = await Project.findById(id);
-    
-    if (!project) {
-      return NextResponse.json(
-        { success: false, error: 'Project not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      data: project 
-    });
-  } catch (error) {
-    console.error('Error fetching project:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch project' },
-      { status: 500 }
-    );
+export const GET = withErrorHandler<unknown, Params>(async (request: NextRequest, context) => {
+  await dbConnect();
+  const { id } = await context!.params;
+  
+  validateObjectId(id, 'project ID');
+  
+  const project = await Project.findById(id);
+  
+  if (!project) {
+    throw new APIErrorClass(404, ErrorCode.NOT_FOUND, 'Project not found');
   }
-}
+
+  return successResponse(project);
+});
 
 /**
  * PUT /api/projects/:id
  * Update a project
  */
-export async function PUT(request: NextRequest, { params }: Params) {
-  try {
-    await dbConnect();
-    const { id } = await params;
-    const body = await request.json();
-    
-    const project = await Project.findByIdAndUpdate(
-      id,
-      { $set: body },
-      { new: true, runValidators: true }
-    );
+export const PUT = withErrorHandler<unknown, Params>(async (request: NextRequest, context) => {
+  await dbConnect();
+  const { id } = await context!.params;
+  
+  validateObjectId(id, 'project ID');
+  
+  const validatedData = await validateRequest(request, updateProjectSchema);
+  
+  const project = await Project.findByIdAndUpdate(
+    id,
+    { $set: validatedData },
+    { new: true, runValidators: true }
+  );
 
-    if (!project) {
-      return NextResponse.json(
-        { success: false, error: 'Project not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      data: project 
-    });
-  } catch (error) {
-    console.error('Error updating project:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to update project' },
-      { status: 500 }
-    );
+  if (!project) {
+    throw new APIErrorClass(404, ErrorCode.NOT_FOUND, 'Project not found');
   }
-}
+
+  return successResponse(project);
+});
 
 /**
  * DELETE /api/projects/:id
  * Delete a project
  */
-export async function DELETE(request: NextRequest, { params }: Params) {
-  try {
-    await dbConnect();
-    const { id } = await params;
-    
-    const project = await Project.findByIdAndDelete(id);
+export const DELETE = withErrorHandler<unknown, Params>(async (request: NextRequest, context) => {
+  await dbConnect();
+  const { id } = await context!.params;
+  
+  validateObjectId(id, 'project ID');
+  
+  const project = await Project.findByIdAndDelete(id);
 
-    if (!project) {
-      return NextResponse.json(
-        { success: false, error: 'Project not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Project deleted successfully' 
-    });
-  } catch (error) {
-    console.error('Error deleting project:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to delete project' },
-      { status: 500 }
-    );
+  if (!project) {
+    throw new APIErrorClass(404, ErrorCode.NOT_FOUND, 'Project not found');
   }
-}
+
+  return successResponse({ deleted: true, id });
+});

@@ -95,7 +95,7 @@ export default function ExcavationStations({ projectId }: ExcavationStationsProp
       const res = await fetch('/api/catalog?limit=5000');
       if (res.ok) {
         const response = await res.json();
-        const allResults: CatalogItem[] = response.data || response || [];
+        const allResults: CatalogItem[] = response.items || [];
         
         // Filter to excavation items (Part C - 800 series)
         const excavationItems = allResults.filter(item =>

@@ -163,10 +163,10 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Fixed Header - Clean Structure */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-white shadow-md h-[240px]">
-        <div className="max-w-7xl mx-auto h-full flex flex-col">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white shadow-md">
+        <div className="max-w-7xl mx-auto flex flex-col">
           
-          {/* Row 1: Project Title */}
+          {/* Row 1: Project Title + Parts/Reports Toggle */}
           <div className="border-b border-gray-200 px-4 py-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -177,53 +177,49 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                   ← Back to Projects
                 </button>
                 <h1 className="text-xl font-bold text-gray-900">{project.name}</h1>
+                {project.description && (
+                  <p className="text-gray-500 text-sm truncate max-w-md">{project.description}</p>
+                )}
               </div>
-              {project.description && (
-                <p className="text-gray-500 text-sm truncate max-w-md">{project.description}</p>
-              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setSectionTab('parts');
+                    setActiveGlobalView(null);
+                    if (!activePart) setActivePart('D');
+                  }}
+                  className={`px-4 py-1.5 rounded-md font-medium text-sm transition-all ${
+                    sectionTab === 'parts'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  🏗️ Parts
+                </button>
+                <button
+                  onClick={() => {
+                    setSectionTab('reports');
+                    setActivePart(null);
+                    if (!activeGlobalView) setActiveGlobalView('takeoff');
+                  }}
+                  className={`px-4 py-1.5 rounded-md font-medium text-sm transition-all ${
+                    sectionTab === 'reports'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  📊 Reports
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Row 2: Parts vs Reports Tabs */}
-          <div className="border-b-2 border-gray-200">
-            <div className="flex gap-1 px-4">
-              <button
-                onClick={() => {
-                  setSectionTab('parts');
-                  setActiveGlobalView(null);
-                  if (!activePart) setActivePart('D');
-                }}
-                className={`px-4 py-2 font-semibold text-sm transition-all relative ${
-                  sectionTab === 'parts'
-                    ? 'text-blue-700 bg-white border-b-2 border-blue-600 -mb-0.5'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                }`}
-              >
-                🏗️ Parts
-              </button>
-              <button
-                onClick={() => {
-                  setSectionTab('reports');
-                  setActivePart(null);
-                  if (!activeGlobalView) setActiveGlobalView('takeoff');
-                }}
-                className={`px-4 py-2 font-semibold text-sm transition-all relative ${
-                  sectionTab === 'reports'
-                    ? 'text-indigo-700 bg-white border-b-2 border-indigo-600 -mb-0.5'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                }`}
-              >
-                📊 Reports
-              </button>
-            </div>
-          </div>
-
-          {/* Row 3: Content Selector (DPWH Parts or Reports) */}
-          <div className="flex-1">
+          {/* Row 2: DPWH Parts or Reports Selector */}
+          <div>
             {sectionTab === 'parts' ? (
-              <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 h-full flex items-center">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-medium text-gray-600 whitespace-nowrap">DPWH Vol. III:</span>
+              <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-sm font-semibold text-gray-700 whitespace-nowrap mr-2">DPWH Vol. III:</span>
                   {[
                     { id: 'C', label: 'Part C - Earthworks', color: 'amber' },
                     { id: 'D', label: 'Part D - Concrete & Reinforcement', color: 'blue' },
@@ -242,14 +238,14 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                           setActiveTab('overview');
                         }
                       }}
-                      className={`px-3 py-1.5 rounded-md font-medium text-xs whitespace-nowrap transition-colors ${
+                      className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all shadow-sm ${
                         activePart === part.id
-                          ? part.color === 'amber' ? 'bg-amber-100 text-amber-800 ring-2 ring-amber-400'
-                          : part.color === 'blue' ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400'
-                          : part.color === 'green' ? 'bg-green-100 text-green-800 ring-2 ring-green-400'
-                          : part.color === 'yellow' ? 'bg-yellow-100 text-yellow-800 ring-2 ring-yellow-400'
-                          : 'bg-purple-100 text-purple-800 ring-2 ring-purple-400'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          ? part.color === 'amber' ? 'bg-amber-500 text-white ring-2 ring-amber-300 shadow-md'
+                          : part.color === 'blue' ? 'bg-blue-500 text-white ring-2 ring-blue-300 shadow-md'
+                          : part.color === 'green' ? 'bg-green-500 text-white ring-2 ring-green-300 shadow-md'
+                          : part.color === 'yellow' ? 'bg-yellow-500 text-white ring-2 ring-yellow-300 shadow-md'
+                          : 'bg-purple-500 text-white ring-2 ring-purple-300 shadow-md'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
                       }`}
                     >
                       {part.label}
@@ -258,7 +254,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                 </div>
               </div>
             ) : (
-              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-2.5 border-b border-indigo-200 h-full flex items-center">
+              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-2.5 border-b border-indigo-200 flex items-center">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-semibold text-indigo-700 whitespace-nowrap">Select Report:</span>
                   <button
@@ -287,93 +283,94 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
             )}
           </div>
 
-          {/* Row 4: Sub-navigation (Part-specific tabs) */}
-          <div className="border-b border-gray-200 bg-white h-[50px] flex items-center">
+          {/* Row 3: Sub-navigation (Part-specific tabs) */}
+          <div className="border-b border-gray-200 bg-white">
             {sectionTab === 'parts' && (
-              <nav className="flex gap-2 flex-wrap px-4 w-full">
-                {activePart === 'D' && (
-                  <>
-                    {[
-                      { id: 'overview', label: 'Overview' },
-                      { id: 'grid', label: 'Grid System' },
-                      { id: 'levels', label: 'Levels' },
-                      { id: 'templates', label: 'Element Templates' },
-                      { id: 'instances', label: 'Element Instances' },
-                      { id: 'history', label: 'Calc History' },
-                    ].map((tab) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as Tab)}
-                        className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
-                          activeTab === tab.id
-                            ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </>
-                )}
+              <div className="overflow-x-auto">
+                <nav className="flex gap-3 px-4 py-2 min-w-max">
+                  {activePart === 'D' && (
+                    <>
+                      {[
+                        { id: 'overview', label: 'Overview' },
+                        { id: 'grid', label: 'Grid System' },
+                        { id: 'levels', label: 'Levels' },
+                        { id: 'templates', label: 'Element Templates' },
+                        { id: 'instances', label: 'Element Instances' },
+                        { id: 'history', label: 'Calc History' },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id as Tab)}
+                          className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
+                            activeTab === tab.id
+                              ? 'border-blue-600 text-blue-700'
+                              : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </>
+                  )}
 
                 {activePart === 'E' && (
                   <>
                     <button
                       onClick={() => setActiveTab('overview')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'overview'
-                          ? 'border-green-500 text-green-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-green-600 text-green-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       Overview
                     </button>
                     <button
                       onClick={() => setActiveTab('spaces')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'spaces'
-                          ? 'border-green-500 text-green-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-green-600 text-green-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       Spaces (Mode A)
                     </button>
                     <button
                       onClick={() => setActiveTab('wallSurfaces')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'wallSurfaces'
-                          ? 'border-green-500 text-green-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-green-600 text-green-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       Wall Surfaces (Mode A)
                     </button>
                     <button
                       onClick={() => setActiveTab('finishes')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'finishes'
-                          ? 'border-green-500 text-green-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-green-600 text-green-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       Finishes (Mode A)
                     </button>
                     <button
                       onClick={() => setActiveTab('roofing')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'roofing'
-                          ? 'border-green-500 text-green-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-green-600 text-green-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       Roofing (Mode B)
                     </button>
                     <button
                       onClick={() => setActiveTab('schedules')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'schedules'
-                          ? 'border-green-500 text-green-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-green-600 text-green-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       Schedules (Mode C)
@@ -385,70 +382,70 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                   <>
                     <button
                       onClick={() => setActiveTab('clearing')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'clearing'
-                          ? 'border-amber-500 text-amber-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-amber-600 text-amber-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       🌳 Clearing & Grubbing
                     </button>
                     <button
                       onClick={() => setActiveTab('removal-trees')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'removal-trees'
-                          ? 'border-amber-500 text-amber-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-amber-600 text-amber-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       🪓 Removal of Trees
                     </button>
                     <button
                       onClick={() => setActiveTab('removal-structures')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'removal-structures'
-                          ? 'border-amber-500 text-amber-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-amber-600 text-amber-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       🏚️ Removal of Structures
                     </button>
                     <button
                       onClick={() => setActiveTab('excavation')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'excavation'
-                          ? 'border-amber-500 text-amber-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-amber-600 text-amber-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       ⛏️ Excavation
                     </button>
                     <button
                       onClick={() => setActiveTab('structure-excavation')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'structure-excavation'
-                          ? 'border-amber-500 text-amber-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-amber-600 text-amber-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       🏗️ Structure Excavation
                     </button>
                     <button
                       onClick={() => setActiveTab('embankment')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'embankment'
-                          ? 'border-amber-500 text-amber-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-amber-600 text-amber-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       🚧 Embankment
                     </button>
                     <button
                       onClick={() => setActiveTab('site-development')}
-                      className={`py-2 px-2 border-b-2 font-medium text-xs whitespace-nowrap ${
+                      className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                         activeTab === 'site-development'
-                          ? 'border-amber-500 text-amber-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-amber-600 text-amber-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       🏗️ Site Development
@@ -456,18 +453,19 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                   </>
                 )}
 
-                {activePart === 'F' && (
-                  <div className="py-2 px-2 text-xs text-gray-500">
-                    Coming Soon: Electrical estimation features
-                  </div>
-                )}
+                  {activePart === 'F' && (
+                    <div className="py-2 px-2 text-xs text-gray-500">
+                      Coming Soon: Electrical estimation features
+                    </div>
+                  )}
 
-                {activePart === 'G' && (
-                  <div className="py-2 px-2 text-xs text-gray-500">
-                    Coming Soon: Mechanical estimation features
-                  </div>
-                )}
-              </nav>
+                  {activePart === 'G' && (
+                    <div className="py-2 px-2 text-xs text-gray-500">
+                      Coming Soon: Mechanical estimation features
+                    </div>
+                  )}
+                </nav>
+              </div>
             )}
           </div>
 
@@ -476,7 +474,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
       {/* End of Fixed Header */}
 
       {/* Spacer to push content below fixed header */}
-      <div className="h-[240px]"></div>
+      <div className="h-[190px]"></div>
 
       {/* Main Content */}
       <div className="px-8 pb-8">

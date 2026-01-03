@@ -34,7 +34,33 @@ export interface ConcreteOutput {
 }
 
 /**
- * Calculate concrete volume for a beam
+ * Calculate concrete volume for a rectangular beam.
+ * 
+ * Formula: Volume = width × height × length
+ * Volume with waste = Volume × (1 + waste)
+ * 
+ * @param input - Beam dimensions and waste factor
+ * @param input.width - Beam width in meters
+ * @param input.height - Beam height in meters  
+ * @param input.length - Beam length in meters
+ * @param input.waste - Waste factor as decimal (e.g., 0.05 for 5%)
+ * 
+ * @returns ConcreteOutput with volume, volumeWithWaste, formula text, and input snapshot
+ * 
+ * @throws {Error} If dimensions are not positive
+ * @throws {Error} If waste is not between 0 and 1
+ * 
+ * @example
+ * ```typescript
+ * const result = calculateBeamConcrete({
+ *   width: 0.30,    // 300mm
+ *   height: 0.50,   // 500mm
+ *   length: 6.00,   // 6m span
+ *   waste: 0.05     // 5% waste
+ * });
+ * // result.volume = 0.90 m³
+ * // result.volumeWithWaste = 0.945 m³
+ * ```
  */
 export function calculateBeamConcrete(input: BeamConcreteInput): ConcreteOutput {
   const { width, height, length, waste } = input;

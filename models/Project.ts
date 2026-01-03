@@ -375,6 +375,25 @@ const ProjectSchema = new Schema<ProjectModel>(
   }
 );
 
+// ===================================
+// INDEXES FOR PERFORMANCE
+// ===================================
+
+// Index on name for search queries
+ProjectSchema.index({ name: 1 });
+
+// Index on createdAt for sorting by date (most recent first)
+ProjectSchema.index({ createdAt: -1 });
+
+// Compound index for name search with date sorting
+ProjectSchema.index({ name: 1, createdAt: -1 });
+
+// Index on updatedAt for "recently modified" queries
+ProjectSchema.index({ updatedAt: -1 });
+
+// Text index on name and description for full-text search
+ProjectSchema.index({ name: 'text', description: 'text' });
+
 // Prevent model recompilation during hot reload
 const Project: Model<ProjectModel> = 
   mongoose.models.Project || mongoose.model<ProjectModel>('Project', ProjectSchema);

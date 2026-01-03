@@ -109,13 +109,13 @@ export interface ProjectModel {
 
 export interface TrussDesign {
   trussParams: {
-    type: 'howe' | 'fink' | 'kingpost';
+    type: 'howe' | 'fink' | 'kingpost' | 'queenpost' | 'pratt' | 'warren';
     span_mm: number;
     middleRise_mm: number;
     overhang_mm: number;
     spacing_mm: number;
     verticalWebCount: number;
-    plateThickness: string;
+    plateThickness: '1.0mm (20 gauge)' | '1.2mm (18 gauge)' | '1.5mm (16 gauge)' | '2.0mm (14 gauge)';
     topChordMaterial: { section: string; weight_kg_per_m: number };
     bottomChordMaterial: { section: string; weight_kg_per_m: number };
     webMaterial: { section: string; weight_kg_per_m: number };
@@ -134,6 +134,7 @@ export interface TrussDesign {
     includeEaveGirt: boolean;
   };
   lastModified?: Date;
+  dpwhItemMappings?: Record<string, { dpwhItemNumberRaw: string; description: string; unit: string }>;
 }
 
 // ===================================
@@ -291,45 +292,6 @@ export interface DPWHItemMapping {
   dpwhItemNumberRaw: string; // e.g., "1047 (8) a"
   description: string; // from catalog
   unit: string; // e.g., "Kilogram"
-}
-
-export interface TrussDesign {
-  trussParams: {
-    type: 'howe' | 'fink' | 'kingpost';
-    span_mm: number;
-    middleRise_mm: number;
-    overhang_mm: number;
-    spacing_mm: number;
-    verticalWebCount: number;
-    plateThickness: string;
-    topChordMaterial: { section: string; weight_kg_per_m: number };
-    bottomChordMaterial: { section: string; weight_kg_per_m: number };
-    webMaterial: { section: string; weight_kg_per_m: number };
-  };
-  buildingLength_mm: number;
-  framingParams: {
-    roofingMaterial: { type: string; maxPurlinSpacing_mm: number };
-    purlinSpacing_mm: number;
-    purlinSpec: { section: string; weight_kg_per_m: number };
-    bracing: {
-      type: 'X-Brace' | 'Diagonal' | 'K-Brace';
-      interval_mm: number;
-      material: { section: string; weight_kg_per_m: number };
-    };
-    includeRidgeCap: boolean;
-    includeEaveGirt: boolean;
-  };
-  dpwhItemMappings?: {
-    trussSteel?: DPWHItemMapping;
-    purlinSteel?: DPWHItemMapping;
-    bracingSteel?: DPWHItemMapping;
-    sagRods?: DPWHItemMapping;
-    boltsAndRods?: DPWHItemMapping;
-    steelPlates?: DPWHItemMapping;
-    roofingSheets?: DPWHItemMapping;
-    ridgeCap?: DPWHItemMapping;
-  };
-  lastModified?: Date;
 }
 
 // ===================================
