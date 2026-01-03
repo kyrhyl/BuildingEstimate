@@ -96,6 +96,7 @@ export interface ProjectModel {
   finishTypes?: FinishType[];
   spaceFinishAssignments?: SpaceFinishAssignment[];
   wallSurfaces?: WallSurface[]; // Grid-based wall surface definitions
+  wallSurfaceFinishAssignments?: WallSurfaceFinishAssignment[]; // Finish assignments for walls
   // Roofing (Mode B)
   trussDesign?: TrussDesign;
   roofTypes?: RoofType[];

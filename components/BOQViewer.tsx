@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { BOQLine, TakeoffLine } from '@/types';
+import { classifyDPWHItem, sortDPWHParts } from '@/lib/dpwhClassification';
 
 interface BOQViewerProps {
   projectId: string;
@@ -41,6 +42,8 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
   const [lastCalculated, setLastCalculated] = useState<string | null>(null);
   const [hasBoq, setHasBoq] = useState(false);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState('all');
+  const [expandedParts, setExpandedParts] = useState<Set<string>>(new Set());
 
   // Load latest CalcRun on mount
   useEffect(() => {
@@ -202,88 +205,129 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
       yPos = (doc as any).lastAutoTable.finalY + 15;
     }
 
-    // BOQ Items by Trade
-    const uniqueTrades = [...new Set(boqLines.flatMap(line => 
-      line.tags.filter(tag => tag.startsWith('trade:')).map(tag => tag.replace('trade:', ''))
-    ))].sort();
+    // Group BOQ Lines by DPWH Part and Subcategory
+    const byPartAndSubcategory: Record<string, Record<string, BOQLine[]>> = {};
     
-    for (const trade of uniqueTrades) {
-      const tradeLines = boqLines.filter(line => line.tags.some(tag => tag === `trade:${trade}`));
-      if (tradeLines.length === 0) continue;
+    boqLines.forEach(line => {
+      // Get DPWH item number from dpwhItemNumberRaw field
+      const dpwhItemNumber = line.dpwhItemNumberRaw || '';
+      
+      // Get category from metadata, tags, or infer from description
+      const tradeTag = line.tags.find(tag => tag.startsWith('trade:'));
+      const trade = tradeTag ? tradeTag.replace('trade:', '') : '';
+      const category = (line.metadata as any)?.category || trade;
+      
+      // Classify the item
+      const classification = classifyDPWHItem(dpwhItemNumber, category);
+      const partKey = classification.part;
+      const subcategoryKey = classification.subcategory;
+      
+      if (!byPartAndSubcategory[partKey]) {
+        byPartAndSubcategory[partKey] = {};
+      }
+      if (!byPartAndSubcategory[partKey][subcategoryKey]) {
+        byPartAndSubcategory[partKey][subcategoryKey] = [];
+      }
+      byPartAndSubcategory[partKey][subcategoryKey].push(line);
+    });
 
-      // Check if we need a new page
+    // Sort parts in DPWH order (C, D, E, F, G)
+    const sortedParts = Object.keys(byPartAndSubcategory).sort(sortDPWHParts);
+    
+    for (const partName of sortedParts) {
+      const subcategories = byPartAndSubcategory[partName];
+
+      // Check if we need a new page for the Part header
       if (yPos > 240) {
         doc.addPage();
         yPos = 20;
       }
 
-      doc.setFontSize(12);
+      // Part Header
+      doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      const tradeColorMap: Record<string, [number, number, number]> = {
-        'Concrete': [59, 130, 246],
-        'Rebar': [249, 115, 22],
-        'Formwork': [168, 85, 247],
-        'Roofing': [220, 38, 38],
-        'Finishes': [34, 197, 94],
-        'Plumbing': [14, 165, 233],
-        'Carpentry': [161, 98, 7],
-      };
-      const tradeColor: [number, number, number] = tradeColorMap[trade] || [107, 114, 128];
-      doc.setTextColor(tradeColor[0], tradeColor[1], tradeColor[2]);
-      doc.text(`${trade.toUpperCase()} - DPWH ITEMS`, 14, yPos);
+      doc.setFillColor(34, 197, 94); // Green
+      doc.rect(14, yPos - 5, pageWidth - 28, 10, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.text(partName, 16, yPos + 2);
       doc.setTextColor(0, 0, 0);
-      yPos += 8;
+      yPos += 12;
 
-      const tableData = tradeLines.map(line => {
-        const sourceLines = getSourceTakeoffLines(line.sourceTakeoffLineIds);
-        
-        // Get element type breakdown
-        const elementTypes: Record<string, number> = {};
-        sourceLines.forEach(source => {
-          const typeTag = source.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') 
-            || source.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
-            || source.tags.find(tag => tag.startsWith('category:'))?.replace('category:', '')
-            || source.trade.toLowerCase();
-          elementTypes[typeTag] = (elementTypes[typeTag] || 0) + 1;
+      // Sort subcategories alphabetically
+      const sortedSubcategories = Object.keys(subcategories).sort();
+      
+      for (const subcategoryName of sortedSubcategories) {
+        const subcategoryLines = subcategories[subcategoryName];
+        if (subcategoryLines.length === 0) continue;
+
+        // Check if we need a new page
+        if (yPos > 240) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        // Subcategory Header
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setFillColor(240, 240, 240);
+        doc.rect(14, yPos - 4, pageWidth - 28, 8, 'F');
+        doc.text(`  ${subcategoryName}`, 16, yPos + 1);
+        yPos += 8;
+
+        const tableData = subcategoryLines.map(line => {
+          const sourceLines = getSourceTakeoffLines(line.sourceTakeoffLineIds);
+          
+          // Get element type breakdown
+          const elementTypes: Record<string, number> = {};
+          sourceLines.forEach(source => {
+            const typeTag = source.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') 
+              || source.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
+              || source.tags.find(tag => tag.startsWith('category:'))?.replace('category:', '')
+              || source.trade.toLowerCase();
+            elementTypes[typeTag] = (elementTypes[typeTag] || 0) + 1;
+          });
+          const elementBreakdown = Object.entries(elementTypes)
+            .map(([type, count]) => `${count} ${type}`)
+            .join(', ');
+          
+          return [
+            line.dpwhItemNumberRaw,
+            line.description,
+            line.unit === 'kg' 
+              ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+            line.unit,
+            elementBreakdown,
+            sourceLines.length.toString()
+          ];
         });
-        const elementBreakdown = Object.entries(elementTypes)
-          .map(([type, count]) => `${count} ${type}`)
-          .join(', ');
-        
-        return [
-          line.dpwhItemNumberRaw,
-          line.description,
-          line.unit === 'kg' 
-            ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
-          line.unit,
-          elementBreakdown,
-          sourceLines.length.toString()
-        ];
-      });
 
-      autoTable(doc, {
-        startY: yPos,
-        head: [['Item No.', 'Description', 'Quantity', 'Unit', 'Element Breakdown', 'Sources']],
-        body: tableData,
-        theme: 'striped',
-        headStyles: { 
-          fillColor: tradeColor,
-          fontStyle: 'bold' 
-        },
-        styles: { fontSize: 8, cellPadding: 2 },
-        columnStyles: {
-          0: { cellWidth: 20, fontStyle: 'bold' },
-          1: { cellWidth: 60 },
-          2: { cellWidth: 25, halign: 'right' },
-          3: { cellWidth: 15 },
-          4: { cellWidth: 45, fontSize: 7 },
-          5: { cellWidth: 15, halign: 'center' }
-        },
-        margin: { left: 14, right: 14 },
-      });
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Item No.', 'Description', 'Quantity', 'Unit', 'Element Breakdown', 'Sources']],
+          body: tableData,
+          theme: 'striped',
+          headStyles: { 
+            fillColor: [59, 130, 246],
+            fontStyle: 'bold',
+            fontSize: 8
+          },
+          styles: { fontSize: 7, cellPadding: 1.5 },
+          columnStyles: {
+            0: { cellWidth: 18, fontStyle: 'bold', fontSize: 8 },
+            1: { cellWidth: 65 },
+            2: { cellWidth: 22, halign: 'right' },
+            3: { cellWidth: 12 },
+            4: { cellWidth: 48, fontSize: 6 },
+            5: { cellWidth: 15, halign: 'center' }
+          },
+          margin: { left: 14, right: 14 },
+        });
 
-      yPos = (doc as any).lastAutoTable.finalY + 10;
+        yPos = (doc as any).lastAutoTable.finalY + 8;
+      }
+
+      yPos += 5; // Extra space between parts
     }
 
     // Detailed Source Traceability Section (New Page)
@@ -480,8 +524,25 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
       {/* BOQ Lines Table */}
       {boqLines.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <h4 className="font-semibold text-gray-700">BOQ Items (DPWH Volume III)</h4>
+            
+            {/* Filter */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">DPWH Part:</label>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded text-sm"
+              >
+                <option value="all">All Parts</option>
+                <option value="PART C">Part C - Earthwork</option>
+                <option value="PART D">Part D - Concrete Works</option>
+                <option value="PART E">Part E - Finishing Works</option>
+                <option value="PART F">Part F - Metal & Electrical</option>
+                <option value="PART G">Part G - Marine & Other</option>
+              </select>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -497,121 +558,207 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {boqLines.map((line) => {
-                  const isExpanded = expandedLines.has(line.id);
-                  const sourceLines = getSourceTakeoffLines(line.sourceTakeoffLineIds);
-                  const isConcrete = line.tags.some(tag => tag === 'trade:Concrete');
-                  const isRebar = line.tags.some(tag => tag === 'trade:Rebar');
-                  const isFormwork = line.tags.some(tag => tag === 'trade:Formwork');
-
-                  return (
-                    <React.Fragment key={line.id}>
-                      <tr className={`hover:bg-gray-50 ${isConcrete ? 'bg-blue-50/30' : isRebar ? 'bg-orange-50/30' : isFormwork ? 'bg-purple-50/30' : ''}`}>
-                        <td className="px-4 py-3 text-sm font-mono text-blue-600">
-                          {line.dpwhItemNumberRaw}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
+                {(() => {
+                  const rows: JSX.Element[] = [];
+                  
+                  // Filter BOQ lines by selected DPWH Part
+                  const filteredLines = filterType === 'all' ? boqLines : boqLines.filter(line => {
+                    const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
+                    const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumberRaw || '');
+                    const classification = classifyDPWHItem(dpwhItemNo, line.category || '');
+                    return classification.part === filterType;
+                  });
+                  
+                  // Group lines by DPWH Part and Subcategory
+                  const byPartAndSubcategory: Record<string, Record<string, BOQLine[]>> = {};
+                  
+                  filteredLines.forEach(line => {
+                    const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
+                    const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumberRaw || '');
+                    const classification = classifyDPWHItem(dpwhItemNo, line.category || '');
+                    const part = classification.part;
+                    const subcategory = classification.subcategory;
+                    
+                    if (!byPartAndSubcategory[part]) {
+                      byPartAndSubcategory[part] = {};
+                    }
+                    if (!byPartAndSubcategory[part][subcategory]) {
+                      byPartAndSubcategory[part][subcategory] = [];
+                    }
+                    byPartAndSubcategory[part][subcategory].push(line);
+                  });
+                  
+                  // Sort parts in DPWH order
+                  const sortedParts = sortDPWHParts(Object.keys(byPartAndSubcategory));
+                  
+                  sortedParts.forEach(part => {
+                    const subcategories = byPartAndSubcategory[part];
+                    const partItemCount = Object.values(subcategories).flat().length;
+                    const isPartExpanded = expandedParts.has(part);
+                    
+                    // Part header row
+                    rows.push(
+                      <tr 
+                        key={`part-${part}`} 
+                        className="bg-blue-100 cursor-pointer hover:bg-blue-200"
+                        onClick={() => {
+                          const newExpanded = new Set(expandedParts);
+                          if (newExpanded.has(part)) {
+                            newExpanded.delete(part);
+                          } else {
+                            newExpanded.add(part);
+                          }
+                          setExpandedParts(newExpanded);
+                        }}
+                      >
+                        <td colSpan={6} className="px-4 py-3 text-sm font-bold text-gray-900">
                           <div className="flex items-center gap-2">
-                            <span>{line.description}</span>
-                            {isConcrete && (
-                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">Concrete</span>
-                            )}
-                            {isRebar && (
-                              <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full">Rebar</span>
-                            )}
-                            {isFormwork && (
-                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">Formwork</span>
-                            )}
+                            <span>{isPartExpanded ? '▼' : '▶'}</span>
+                            <span>{part}</span>
+                            <span className="text-xs font-normal text-gray-600">({partItemCount} items)</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
-                          {line.unit === 'kg' 
-                            ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                            : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center text-gray-600">
-                          {line.unit}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center text-gray-600">
-                          {line.sourceTakeoffLineIds.length} takeoff line{line.sourceTakeoffLineIds.length !== 1 ? 's' : ''}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => toggleExpand(line.id)}
-                            className="text-blue-600 hover:text-blue-800 text-sm"
-                          >
-                            {isExpanded ? 'Hide' : 'Show'}
-                          </button>
-                        </td>
                       </tr>
+                    );
+                    
+                    // Show subcategories if part is expanded
+                    if (isPartExpanded) {
+                      const sortedSubcategories = Object.keys(subcategories).sort();
                       
-                      {/* Expanded Details */}
-                      {isExpanded && (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-4 bg-gray-50">
-                            <div className="space-y-3">
-                              <h5 className="font-semibold text-sm text-gray-700">Source Takeoff Lines:</h5>
-                              <div className="space-y-2">
-                                {sourceLines.map((source) => {
-                                  const templateTag = source.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') 
-                                    || source.tags.find(tag => tag.startsWith('finish:'))?.replace('finish:', '')
-                                    || source.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
-                                    || source.tags.find(tag => tag.startsWith('section:'))?.replace('section:', '')
-                                    || source.resourceKey.split('-')[0] || 'N/A';
-                                  const levelTag = source.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
-                                    || source.tags.find(tag => tag.startsWith('space:'))?.replace('space:', '')
-                                    || 'N/A';
-                                  
-                                  return (
-                                    <div key={source.id} className="bg-white border border-gray-200 rounded p-3">
-                                      <div className="grid grid-cols-4 gap-2 text-xs">
-                                        <div>
-                                          <span className="text-gray-500">Template:</span>{' '}
-                                          <span className="font-medium">{templateTag}</span>
-                                        </div>
-                                        <div>
-                                          <span className="text-gray-500">Level:</span>{' '}
-                                          <span className="font-medium">{levelTag}</span>
-                                        </div>
-                                        <div>
-                                          <span className="text-gray-500">Quantity:</span>{' '}
-                                          <span className="font-medium">
-                                            {source.unit === 'kg'
-                                              ? source.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                              : source.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {source.unit}
-                                          </span>
-                                        </div>
-                                        <div>
-                                          <span className="text-gray-500">Formula:</span>{' '}
-                                          <span className="font-mono text-xs">{source.formulaText}</span>
+                      sortedSubcategories.forEach(subcategory => {
+                        const subcategoryLines = subcategories[subcategory];
+                        
+                        // Subcategory header row
+                        rows.push(
+                          <tr key={`subcat-${part}-${subcategory}`} className="bg-blue-50">
+                            <td colSpan={6} className="px-8 py-2 text-sm font-semibold text-gray-800">
+                              {subcategory} ({subcategoryLines.length} items)
+                            </td>
+                          </tr>
+                        );
+                        
+                        // Render individual BOQ lines
+                        subcategoryLines.forEach((line) => {
+                          const isExpanded = expandedLines.has(line.id);
+                          const sourceLines = getSourceTakeoffLines(line.sourceTakeoffLineIds);
+                          const isConcrete = line.tags.some(tag => tag === 'trade:Concrete');
+                          const isRebar = line.tags.some(tag => tag === 'trade:Rebar');
+                          const isFormwork = line.tags.some(tag => tag === 'trade:Formwork');
+
+                          rows.push(
+                            <React.Fragment key={line.id}>
+                              <tr className={`hover:bg-gray-50 ${isConcrete ? 'bg-blue-50/30' : isRebar ? 'bg-orange-50/30' : isFormwork ? 'bg-purple-50/30' : ''}`}>
+                                <td className="px-4 py-3 text-sm font-mono text-blue-600">
+                                  {line.dpwhItemNumberRaw}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900">
+                                  <div className="flex items-center gap-2">
+                                    <span>{line.description}</span>
+                                    {isConcrete && (
+                                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">Concrete</span>
+                                    )}
+                                    {isRebar && (
+                                      <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full">Rebar</span>
+                                    )}
+                                    {isFormwork && (
+                                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">Formwork</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
+                                  {line.unit === 'kg' 
+                                    ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                    : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-center text-gray-600">
+                                  {line.unit}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-center text-gray-600">
+                                  {line.sourceTakeoffLineIds.length} takeoff line{line.sourceTakeoffLineIds.length !== 1 ? 's' : ''}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={() => toggleExpand(line.id)}
+                                    className="text-blue-600 hover:text-blue-800 text-sm"
+                                  >
+                                    {isExpanded ? 'Hide' : 'Show'}
+                                  </button>
+                                </td>
+                              </tr>
+                              
+                              {/* Expanded Details */}
+                              {isExpanded && (
+                                <tr>
+                                  <td colSpan={6} className="px-4 py-4 bg-gray-50">
+                                    <div className="space-y-3">
+                                      <h5 className="font-semibold text-sm text-gray-700">Source Takeoff Lines:</h5>
+                                      <div className="space-y-2">
+                                        {sourceLines.map((source) => {
+                                          const templateTag = source.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') 
+                                            || source.tags.find(tag => tag.startsWith('finish:'))?.replace('finish:', '')
+                                            || source.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
+                                            || source.tags.find(tag => tag.startsWith('section:'))?.replace('section:', '')
+                                            || source.resourceKey.split('-')[0] || 'N/A';
+                                          const levelTag = source.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
+                                            || source.tags.find(tag => tag.startsWith('space:'))?.replace('space:', '')
+                                            || 'N/A';
+                                          
+                                          return (
+                                            <div key={source.id} className="bg-white border border-gray-200 rounded p-3">
+                                              <div className="grid grid-cols-4 gap-2 text-xs">
+                                                <div>
+                                                  <span className="text-gray-500">Template:</span>{' '}
+                                                  <span className="font-medium">{templateTag}</span>
+                                                </div>
+                                                <div>
+                                                  <span className="text-gray-500">Level:</span>{' '}
+                                                  <span className="font-medium">{levelTag}</span>
+                                                </div>
+                                                <div>
+                                                  <span className="text-gray-500">Quantity:</span>{' '}
+                                                  <span className="font-medium">
+                                                    {source.unit === 'kg'
+                                                      ? source.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                      : source.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {source.unit}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <span className="text-gray-500">Formula:</span>{' '}
+                                                  <span className="font-mono text-xs">{source.formulaText}</span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                      
+                                      {/* Tags */}
+                                      <div>
+                                        <h5 className="font-semibold text-xs text-gray-700 mb-1">Tags:</h5>
+                                        <div className="flex flex-wrap gap-1">
+                                          {line.tags.map((tag, idx) => (
+                                            <span
+                                              key={idx}
+                                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs"
+                                            >
+                                              {tag}
+                                            </span>
+                                          ))}
                                         </div>
                                       </div>
                                     </div>
-                                  );
-                                })}
-                              </div>
-                              
-                              {/* Tags */}
-                              <div>
-                                <h5 className="font-semibold text-xs text-gray-700 mb-1">Tags:</h5>
-                                <div className="flex flex-wrap gap-1">
-                                  {line.tags.map((tag, idx) => (
-                                    <span
-                                      key={idx}
-                                      className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs"
-                                    >
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        });
+                      });
+                    }
+                  });
+                  
+                  return rows;
+                })()}
               </tbody>
             </table>
           </div>

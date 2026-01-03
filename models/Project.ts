@@ -1,5 +1,5 @@
 import mongoose, { Schema, Model } from 'mongoose';
-import type { ProjectModel, ProjectSettings, GridLine, Level, ElementTemplate, ElementInstance, Space, Opening, FinishType, SpaceFinishAssignment, WallSurface, RoofType, RoofPlane, ScheduleItem } from '@/types';
+import type { ProjectModel, ProjectSettings, GridLine, Level, ElementTemplate, ElementInstance, Space, Opening, FinishType, SpaceFinishAssignment, WallSurface, WallSurfaceFinishAssignment, RoofType, RoofPlane, ScheduleItem } from '@/types';
 
 // Default project settings
 const defaultSettings: ProjectSettings = {
@@ -155,6 +155,17 @@ const WallSurfaceSchema = new Schema<WallSurface>({
     totalArea_m2: { type: Number, default: 0 },
   },
   tags: [String],
+});
+
+const WallSurfaceFinishAssignmentSchema = new Schema<WallSurfaceFinishAssignment>({
+  id: { type: String, required: true },
+  wallSurfaceId: { type: String, required: true },
+  finishTypeId: { type: String, required: true },
+  scope: { type: String, required: true }, // "plaster", "paint", "tile", etc.
+  side: { type: String, enum: ['single', 'both'] }, // Override default sides count
+  overrides: {
+    wastePercent: Number,
+  },
 });
 
 // ===================================
@@ -342,6 +353,7 @@ const ProjectSchema = new Schema<ProjectModel>(
     finishTypes: [FinishTypeSchema],
     spaceFinishAssignments: [SpaceFinishAssignmentSchema],
     wallSurfaces: [WallSurfaceSchema],
+    wallSurfaceFinishAssignments: [WallSurfaceFinishAssignmentSchema],
     // Roofing (Mode B)
     trussDesign: TrussDesignSchema,
     roofTypes: [RoofTypeSchema],

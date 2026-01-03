@@ -988,11 +988,20 @@ export async function POST(
 
     if (project.spaces && project.spaces.length > 0) {
       try {
+        console.log('\n=== STARTING FINISHES CALCULATION ===');
+        console.log('Spaces:', project.spaces?.length || 0);
+        console.log('Finish types:', project.finishTypes?.length || 0);
+        console.log('Space assignments:', project.spaceFinishAssignments?.length || 0);
+        console.log('Wall surfaces:', project.wallSurfaces?.length || 0);
+        console.log('Wall surface assignments:', project.wallSurfaceFinishAssignments?.length || 0);
+        
         const finishesResult = calculateFinishingWorks({
           spaces: project.spaces || [],
           openings: project.openings || [],
           finishTypes: project.finishTypes || [],
           assignments: project.spaceFinishAssignments || [],
+          wallSurfaces: project.wallSurfaces || [],
+          wallAssignments: project.wallSurfaceFinishAssignments || [],
           levels: project.levels || [],
           gridX: project.gridX || [],
           gridY: project.gridY || [],

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { TakeoffLine } from '@/types';
+import { classifyDPWHItem, sortDPWHParts } from '@/lib/dpwhClassification';
 
 interface TakeoffViewerProps {
   projectId: string;
@@ -33,6 +34,8 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
   const [lastCalculated, setLastCalculated] = useState<string | null>(null);
   const [hasCalcRun, setHasCalcRun] = useState(false);
   const [summarizedView, setSummarizedView] = useState(true);
+  const [expandedParts, setExpandedParts] = useState<Set<string>>(new Set());
+  const [expandedParts, setExpandedParts] = useState<Set<string>>(new Set());
 
   // Load latest CalcRun on mount
   useEffect(() => {
@@ -101,11 +104,14 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
   // Filter takeoff lines by type
   const filteredLines = filterType === 'all' 
     ? takeoffLines 
-    : filterType === 'Concrete' || filterType === 'Rebar' || filterType === 'Formwork'
-    ? takeoffLines.filter(line => line.trade === filterType)
     : takeoffLines.filter(line => {
-        const typeTag = line.tags.find(tag => tag.startsWith('type:'));
-        return typeTag === filterType;
+        // Get DPWH item number from tags or field
+        const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
+        const dpwhItemNumber = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '');
+        const category = (line.metadata as any)?.category || line.trade;
+        
+        const classification = classifyDPWHItem(dpwhItemNumber, category);
+        return classification.part.startsWith(filterType);
       });
 
   // Group by element type
@@ -182,71 +188,127 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
       yPos = (doc as any).lastAutoTable.finalY + 15;
     }
 
-    // Detailed Takeoff by Trade
-    const uniqueTrades = [...new Set(takeoffLines.map(line => line.trade))].sort();
+    // Group by DPWH Part and Subcategory
+    const byPartAndSubcategory: Record<string, Record<string, TakeoffLine[]>> = {};
     
-    for (const trade of uniqueTrades) {
-      const tradeLines = takeoffLines.filter(line => line.trade === trade);
-      if (tradeLines.length === 0) continue;
+    takeoffLines.forEach(line => {
+      // Get DPWH item number from tags (dpwh:xxx) or direct field
+      const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
+      const dpwhItemNumber = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '');
+      
+      // Get category from metadata or infer from trade
+      const category = (line.metadata as any)?.category || line.trade;
+      
+      // Classify the item
+      const classification = classifyDPWHItem(dpwhItemNumber, category);
+      const partKey = classification.part;
+      const subcategoryKey = classification.subcategory;
+      
+      if (!byPartAndSubcategory[partKey]) {
+        byPartAndSubcategory[partKey] = {};
+      }
+      if (!byPartAndSubcategory[partKey][subcategoryKey]) {
+        byPartAndSubcategory[partKey][subcategoryKey] = [];
+      }
+      byPartAndSubcategory[partKey][subcategoryKey].push(line);
+    });
 
-      // Check if we need a new page
+    // Sort parts in DPWH order (C, D, E, F, G)
+    const sortedParts = Object.keys(byPartAndSubcategory).sort(sortDPWHParts);
+    
+    for (const partName of sortedParts) {
+      const subcategories = byPartAndSubcategory[partName];
+      
+      // Check if we need a new page for the Part header
       if (yPos > 250) {
         doc.addPage();
         yPos = 20;
       }
 
-      doc.setFontSize(12);
+      // Part Header
+      doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${trade.toUpperCase()} TAKEOFF`, 14, yPos);
-      yPos += 8;
+      doc.setFillColor(220, 220, 220);
+      doc.rect(14, yPos - 5, pageWidth - 28, 10, 'F');
+      doc.text(partName, 16, yPos + 2);
+      yPos += 12;
 
-      const tableData = tradeLines.map(line => {
-        const typeTag = line.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') 
-          || line.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
-          || line.tags.find(tag => tag.startsWith('category:'))?.replace('category:', '')
-          || line.trade.toLowerCase();
-        const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') 
-          || line.tags.find(tag => tag.startsWith('finish:'))?.replace('finish:', '')
-          || line.tags.find(tag => tag.startsWith('section:'))?.replace('section:', '')
-          || line.resourceKey.split('-')[0] || 'N/A';
-        const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
-          || line.tags.find(tag => tag.startsWith('space:'))?.replace('space:', '')
-          || 'N/A';
-        
-        return [
-          typeTag,
-          templateTag,
-          levelTag,
-          line.unit === 'kg' 
-            ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
-          line.unit,
-          line.formulaText
-        ];
-      });
+      // Sort subcategories alphabetically
+      const sortedSubcategories = Object.keys(subcategories).sort();
+      
+      for (const subcategoryName of sortedSubcategories) {
+        const subcategoryLines = subcategories[subcategoryName];
+        if (subcategoryLines.length === 0) continue;
 
-      autoTable(doc, {
-        startY: yPos,
-        head: [['Type', 'Template', 'Level', 'Quantity', 'Unit', 'Formula']],
-        body: tableData,
-        theme: 'striped',
-        headStyles: { 
-          fillColor: trade === 'Concrete' ? [59, 130, 246] : trade === 'Rebar' ? [249, 115, 22] : [168, 85, 247],
-          fontStyle: 'bold' 
-        },
-        styles: { fontSize: 8, cellPadding: 2 },
-        columnStyles: {
-          0: { cellWidth: 20 },
-          1: { cellWidth: 30 },
-          2: { cellWidth: 20 },
-          3: { cellWidth: 25, halign: 'right' },
-          4: { cellWidth: 15 },
-          5: { cellWidth: 'auto', fontSize: 7 }
-        },
-        margin: { left: 14, right: 14 },
-      });
+        // Check if we need a new page
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
 
-      yPos = (doc as any).lastAutoTable.finalY + 10;
+        // Subcategory Header
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`  ${subcategoryName}`, 14, yPos);
+        yPos += 6;
+
+        const tableData = subcategoryLines.map(line => {
+          const typeTag = line.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') 
+            || line.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
+            || line.tags.find(tag => tag.startsWith('category:'))?.replace('category:', '')
+            || line.trade.toLowerCase();
+          const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') 
+            || line.tags.find(tag => tag.startsWith('finish:'))?.replace('finish:', '')
+            || line.tags.find(tag => tag.startsWith('section:'))?.replace('section:', '')
+            || line.resourceKey.split('-')[0] || 'N/A';
+          const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
+            || line.tags.find(tag => tag.startsWith('space:'))?.replace('space:', '')
+            || 'N/A';
+          
+          // Extract DPWH item number from tags or field
+          const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
+          const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '-');
+          
+          return [
+            line.description || templateTag,
+            typeTag,
+            levelTag,
+            line.unit === 'kg' 
+              ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+            line.unit,
+            line.formulaText,
+            dpwhItemNo
+          ];
+        });
+
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Description', 'Type', 'Location', 'Quantity', 'Unit', 'Formula', 'Item No.']],
+          body: tableData,
+          theme: 'striped',
+          headStyles: { 
+            fillColor: [59, 130, 246],
+            fontStyle: 'bold',
+            fontSize: 8
+          },
+          styles: { fontSize: 7, cellPadding: 1.5 },
+          columnStyles: {
+            0: { cellWidth: 35 },
+            1: { cellWidth: 18 },
+            2: { cellWidth: 20 },
+            3: { cellWidth: 20, halign: 'right' },
+            4: { cellWidth: 12 },
+            5: { cellWidth: 'auto', fontSize: 6 },
+            6: { cellWidth: 18, halign: 'center' }
+          },
+          margin: { left: 14, right: 14 },
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 8;
+      }
+
+      yPos += 5; // Extra space between parts
     }
 
     // Footer on last page
@@ -273,9 +335,9 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="flex justify-between items-center">
           <div>
-            <h3 className="text-lg font-semibold mb-2">Concrete Quantity Takeoff</h3>
+            <h3 className="text-lg font-semibold mb-2">Quantity Takeoff</h3>
             <p className="text-sm text-gray-600">
-              Generate concrete volume calculations from placed elements
+              Generate quantity calculations from placed elements, finishes, and other components
             </p>
             {lastCalculated && (
               <p className="text-xs text-gray-500 mt-1">
@@ -327,7 +389,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
       {summary && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h4 className="font-semibold text-blue-900 mb-4">Summary</h4>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div>
               <div className="text-sm text-blue-700">Total Concrete</div>
               <div className="text-2xl font-bold text-blue-900">
@@ -346,6 +408,32 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                 {(summary.totalFormwork || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
               </div>
             </div>
+            {(summary as any).totalFloorArea > 0 && (
+              <div>
+                <div className="text-sm text-green-700">Floor Finishes</div>
+                <div className="text-2xl font-bold text-green-900">
+                  {(summary as any).totalFloorArea.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
+                </div>
+              </div>
+            )}
+            {(summary as any).totalWallArea > 0 && (
+              <div>
+                <div className="text-sm text-green-700">Wall Finishes</div>
+                <div className="text-2xl font-bold text-green-900">
+                  {(summary as any).totalWallArea.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
+                </div>
+              </div>
+            )}
+            {(summary as any).totalCeilingArea > 0 && (
+              <div>
+                <div className="text-sm text-green-700">Ceiling Finishes</div>
+                <div className="text-2xl font-bold text-green-900">
+                  {(summary as any).totalCeilingArea.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-4">
             <div>
               <div className="text-sm text-blue-700">Elements Processed</div>
               <div className="text-2xl font-bold text-blue-900">{summary.elementCount}</div>
@@ -436,37 +524,18 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
             {/* Filter */}
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">Trade:</label>
+                <label className="text-sm text-gray-600">DPWH Part:</label>
                 <select
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
                   className="px-3 py-1 border border-gray-300 rounded text-sm"
                 >
-                  <option value="all">All Trades</option>
-                  <option value="Concrete">Concrete</option>
-                  <option value="Rebar">Rebar</option>
-                  <option value="Formwork">Formwork</option>
-                  <option value="Roofing">Roofing</option>
-                  <option value="Finishes">Finishes</option>
-                  <option value="Plumbing">Plumbing</option>
-                  <option value="Carpentry">Carpentry</option>
-                  <option value="Hardware">Hardware</option>
-                  <option value="Doors & Windows">Doors & Windows</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">Element:</label>
-                <select
-                  value={filterType.startsWith('type:') ? filterType.replace('type:', '') : 'all'}
-                  onChange={(e) => setFilterType(e.target.value === 'all' ? 'all' : `type:${e.target.value}`)}
-                  className="px-3 py-1 border border-gray-300 rounded text-sm"
-                >
-                  <option value="all">All Elements</option>
-                  <option value="beam">Beams</option>
-                  <option value="slab">Slabs</option>
-                  <option value="column">Columns</option>
-                  <option value="foundation">Foundations</option>
+                  <option value="all">All Parts</option>
+                  <option value="PART C">Part C - Earthwork</option>
+                  <option value="PART D">Part D - Concrete Works</option>
+                  <option value="PART E">Part E - Finishing Works</option>
+                  <option value="PART F">Part F - Metal & Electrical</option>
+                  <option value="PART G">Part G - Marine & Other</option>
                 </select>
               </div>
             </div>
@@ -476,9 +545,9 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Template</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item No.</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
                   {summarizedView && (
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Count</th>
                   )}
@@ -489,86 +558,150 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
-                {(summarizedView ? (() => {
-                  // Group by template + level + trade to create summarized view
-                  const grouped: Record<string, TakeoffLine[]> = {};
+              <tbody>
+                {(() => {
+                  const rows: JSX.Element[] = [];
+                  
+                  // Group lines by DPWH Part and Subcategory
+                  const byPartAndSubcategory: Record<string, Record<string, TakeoffLine[]>> = {};
                   
                   filteredLines.forEach(line => {
-                    const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'N/A';
-                    const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'N/A';
-                    const key = `${line.trade}_${templateTag}_${levelTag}`;
+                    const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
+                    const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '');
+                    const classification = classifyDPWHItem(dpwhItemNo, line.category || '');
+                    const part = classification.part;
+                    const subcategory = classification.subcategory;
                     
-                    if (!grouped[key]) {
-                      grouped[key] = [];
+                    if (!byPartAndSubcategory[part]) {
+                      byPartAndSubcategory[part] = {};
                     }
-                    grouped[key].push(line);
+                    if (!byPartAndSubcategory[part][subcategory]) {
+                      byPartAndSubcategory[part][subcategory] = [];
+                    }
+                    byPartAndSubcategory[part][subcategory].push(line);
                   });
                   
-                  return Object.values(grouped).map(lines => ({
-                    ...lines[0],
-                    id: `grouped_${lines[0].id}`,
-                    quantity: lines.reduce((sum, line) => sum + line.quantity, 0),
-                    formulaText: lines.length > 1 ? `${lines.length} instances` : lines[0].formulaText,
-                  }));
-                })() : filteredLines).map((line, idx) => {
-                  const isGrouped = summarizedView && line.formulaText.includes('instances');
-                  const instanceCount = isGrouped ? parseInt(line.formulaText.split(' ')[0]) : 0;
+                  // Sort parts in DPWH order
+                  const sortedParts = sortDPWHParts(Object.keys(byPartAndSubcategory));
                   
-                  // Extract tags with proper fallbacks
-                  const typeTag = line.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') 
-                    || line.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
-                    || line.tags.find(tag => tag.startsWith('category:'))?.replace('category:', '')
-                    || line.trade.toLowerCase();
+                  sortedParts.forEach(part => {
+                    const subcategories = byPartAndSubcategory[part];
+                    const partItemCount = Object.values(subcategories).flat().length;
+                    const isPartExpanded = expandedParts.has(part);
                     
-                  const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') 
-                    || line.tags.find(tag => tag.startsWith('finish:'))?.replace('finish:', '')
-                    || line.tags.find(tag => tag.startsWith('section:'))?.replace('section:', '')
-                    || line.resourceKey.split('-')[0] || 'N/A';
+                    // Part header row
+                    rows.push(
+                      <tr 
+                        key={`part-${part}`} 
+                        className="bg-blue-100 cursor-pointer hover:bg-blue-200"
+                        onClick={() => {
+                          const newExpanded = new Set(expandedParts);
+                          if (newExpanded.has(part)) {
+                            newExpanded.delete(part);
+                          } else {
+                            newExpanded.add(part);
+                          }
+                          setExpandedParts(newExpanded);
+                        }}
+                      >
+                        <td colSpan={summarizedView ? 7 : 6} className="px-4 py-3 text-sm font-bold text-gray-900">
+                          <div className="flex items-center gap-2">
+                            <span>{isPartExpanded ? '▼' : '▶'}</span>
+                            <span>{part}</span>
+                            <span className="text-xs font-normal text-gray-600">({partItemCount} items)</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
                     
-                  const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
-                    || line.tags.find(tag => tag.startsWith('space:'))?.replace('space:', '')
-                    || 'N/A';
+                    // Show subcategories if part is expanded
+                    if (isPartExpanded) {
+                      const sortedSubcategories = Object.keys(subcategories).sort();
+                      
+                      sortedSubcategories.forEach(subcategory => {
+                        const subcategoryLines = subcategories[subcategory];
+                        
+                        // Subcategory header row
+                        rows.push(
+                          <tr key={`subcat-${part}-${subcategory}`} className="bg-blue-50">
+                            <td colSpan={summarizedView ? 7 : 6} className="px-8 py-2 text-sm font-semibold text-gray-800">
+                              {subcategory} ({subcategoryLines.length} items)
+                            </td>
+                          </tr>
+                        );
+                        
+                        // Process lines for this subcategory (with summarization if enabled)
+                        const linesToDisplay = summarizedView ? (() => {
+                          const grouped: Record<string, TakeoffLine[]> = {};
+                          
+                          subcategoryLines.forEach(line => {
+                            const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
+                            const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '-');
+                            const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'N/A';
+                            const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'N/A';
+                            const key = `${dpwhItemNo}_${templateTag}_${levelTag}`;
+                            
+                            if (!grouped[key]) {
+                              grouped[key] = [];
+                            }
+                            grouped[key].push(line);
+                          });
+                          
+                          return Object.values(grouped).map(lines => ({
+                            ...lines[0],
+                            id: `grouped_${lines[0].id}`,
+                            quantity: lines.reduce((sum, line) => sum + line.quantity, 0),
+                            formulaText: lines.length > 1 ? `${lines.length} instances` : lines[0].formulaText,
+                          }));
+                        })() : subcategoryLines;
+                        
+                        // Render individual item rows
+                        linesToDisplay.forEach((line) => {
+                          const isGrouped = summarizedView && line.formulaText.includes('instances');
+                          const instanceCount = isGrouped ? parseInt(line.formulaText.split(' ')[0]) : 0;
+                          
+                          const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
+                          const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '-');
+                          
+                          const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'N/A';
+                          const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
+                            || line.tags.find(tag => tag.startsWith('space:'))?.replace('space:', '')
+                            || 'N/A';
+                          
+                          rows.push(
+                            <tr key={`line-${line.id}`} className="hover:bg-blue-50">
+                              <td className="px-4 py-2 text-xs font-mono text-gray-700">{dpwhItemNo}</td>
+                              <td className="px-4 py-2 text-sm text-gray-900">{line.description || templateTag}</td>
+                              <td className="px-4 py-2 text-sm text-gray-600">{levelTag}</td>
+                              {summarizedView && (
+                                <td className="px-4 py-2 text-sm text-center font-semibold text-gray-700">
+                                  {isGrouped ? instanceCount : 1}
+                                </td>
+                              )}
+                              <td className="px-4 py-2 text-sm text-right font-semibold text-gray-900">
+                                {line.unit === 'kg' 
+                                  ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                  : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {line.unit}
+                              </td>
+                              <td className="px-4 py-2 text-xs text-gray-600 font-mono max-w-md">
+                                {isGrouped ? `Total of ${instanceCount} instances` : line.formulaText}
+                              </td>
+                              {!summarizedView && (
+                                <td className="px-4 py-2 text-xs text-gray-500">
+                                  {line.assumptions.map((assumption, idx) => (
+                                    <div key={idx}>• {assumption}</div>
+                                  ))}
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        });
+                      });
+                    }
+                  });
                   
-                  const typeColors = {
-                    beam: 'text-blue-700 bg-blue-50',
-                    slab: 'text-green-700 bg-green-50',
-                    column: 'text-purple-700 bg-purple-50',
-                  };
-                  const typeColor = typeColors[typeTag as keyof typeof typeColors] || 'text-gray-700 bg-gray-50';
-
-                  return (
-                    <tr key={line.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${typeColor} capitalize`}>
-                          {typeTag}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{templateTag}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{levelTag}</td>
-                      {summarizedView && (
-                        <td className="px-4 py-3 text-sm text-center font-semibold text-gray-700">
-                          {isGrouped ? instanceCount : 1}
-                        </td>
-                      )}
-                      <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
-                        {line.unit === 'kg' 
-                          ? line.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          : line.quantity.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {line.unit}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600 font-mono max-w-md">
-                        {isGrouped ? `Total of ${instanceCount} instances` : line.formulaText}
-                      </td>
-                      {!summarizedView && (
-                        <td className="px-4 py-3 text-xs text-gray-500">
-                          {line.assumptions.map((assumption, idx) => (
-                            <div key={idx}>• {assumption}</div>
-                          ))}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
+                  return rows;
+                })()}
               </tbody>
               <tfoot className="bg-gray-50 font-semibold">
                 <tr>

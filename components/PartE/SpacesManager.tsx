@@ -8,9 +8,8 @@ interface Space {
   levelId: string;
   boundary: any;
   computed: {
-    floorArea_m2: number;
-    wallArea_m2: number;
-    ceilingArea_m2: number;
+    area_m2: number;
+    perimeter_m: number;
   };
 }
 
@@ -444,12 +443,12 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grid Bounds</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dimensions (m)</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Grid Bounds</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Dimensions (m)</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Area (m²)</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Perimeter (m)</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -482,11 +481,11 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                       <td className="px-4 py-3">
                         <span className="font-medium text-gray-900">{space.name}</span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{space.levelId}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-center text-sm text-gray-600">{space.levelId}</td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-600">
                         {space.boundary?.data?.gridX?.join(' - ')} × {space.boundary?.data?.gridY?.join(' - ')}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-center text-sm font-medium text-gray-700">
                         {dimensions || 'N/A'}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -497,7 +496,7 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                       <td className="px-4 py-3 text-right text-sm text-gray-600">
                         {space.computed?.perimeter_m?.toFixed(2) || '0.00'}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-center">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

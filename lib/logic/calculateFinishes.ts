@@ -8,6 +8,8 @@ import type {
   Opening,
   FinishType,
   SpaceFinishAssignment,
+  WallSurface,
+  WallSurfaceFinishAssignment,
   TakeoffLine,
   Level,
   GridLine,
@@ -24,6 +26,8 @@ export interface FinishesCalculationInput {
   openings: Opening[];
   finishTypes: FinishType[];
   assignments: SpaceFinishAssignment[];
+  wallSurfaces?: WallSurface[];
+  wallAssignments?: WallSurfaceFinishAssignment[];
   levels: Level[];
   gridX: GridLine[];
   gridY: GridLine[];
@@ -51,6 +55,8 @@ export function calculateFinishingWorks(
     openings,
     finishTypes,
     assignments,
+    wallSurfaces = [],
+    wallAssignments = [],
     levels,
     gridX,
     gridY,
@@ -159,6 +165,120 @@ export function calculateFinishingWorks(
     }
   }
 
+  // ===================================
+  // WALL SURFACE FINISH ASSIGNMENTS
+  // ===================================
+  console.log('\n=== WALL SURFACE ASSIGNMENTS ===');
+  console.log('Wall surfaces available:', wallSurfaces.length);
+  console.log('Wall assignments to process:', wallAssignments.length);
+  
+  if (wallAssignments.length > 0) {
+    console.log('Wall assignments:', wallAssignments.map(a => ({
+      id: a.id,
+      wallSurfaceId: a.wallSurfaceId,
+      finishTypeId: a.finishTypeId,
+      scope: a.scope
+    })));
+  }
+
+  for (const wallAssignment of wallAssignments) {
+    try {
+      // Find wall surface
+      const wallSurface = wallSurfaces.find(ws => ws.id === wallAssignment.wallSurfaceId);
+      if (!wallSurface) {
+        errors.push(`Wall surface ${wallAssignment.wallSurfaceId} not found for assignment ${wallAssignment.id}`);
+        continue;
+      }
+
+      // Find finish type
+      const finishType = finishTypes.find(ft => ft.id === wallAssignment.finishTypeId);
+      if (!finishType) {
+        errors.push(`Finish type ${wallAssignment.finishTypeId} not found for wall assignment ${wallAssignment.id}`);
+        continue;
+      }
+
+      // Calculate area based on wall surface computed values
+      // Check both computed.totalArea_m2 and fallback to area_m2 if available
+      let area = wallSurface.computed?.totalArea_m2 || (wallSurface as any).area_m2 || 0;
+      
+      if (area === 0) {
+        errors.push(`Wall surface ${wallSurface.name} has no computed area. Skipping assignment ${wallAssignment.id}.`);
+        continue;
+      }
+      
+      // If assignment specifies side override, recalculate
+      if (wallAssignment.side === 'single') {
+        area = wallSurface.computed?.grossArea_m2 || 0;
+      } else if (wallAssignment.side === 'both') {
+        area = (wallSurface.computed?.grossArea_m2 || 0) * 2;
+      }
+
+      // Apply waste if specified
+      const wastePercent = wallAssignment.overrides?.wastePercent ?? finishType.assumptions?.wastePercent ?? 0;
+      const wasteFactor = 1 + (wastePercent / 100);
+      const finalQuantity = area * wasteFactor;
+
+      // Get dimensions for formula
+      const length = wallSurface.computed?.length_m || 0;
+      const height = wallSurface.computed?.height_m || 0;
+      const sidesCount = wallAssignment.side === 'single' ? 1 : wallAssignment.side === 'both' ? 2 : wallSurface.computed?.sidesCount || 1;
+
+      // Create takeoff line
+      const takeoffLine: TakeoffLine = {
+        id: `wall-finish-${wallAssignment.id}`,
+        description: `${finishType.finishName} - ${wallSurface.name} (${wallAssignment.scope})`,
+        trade: 'Finishes',
+        element: 'Wall Surface',
+        location: `${wallSurface.gridLine.axis}${wallSurface.gridLine.label} (${wallSurface.levelStart}-${wallSurface.levelEnd})`,
+        quantity: Number(finalQuantity.toFixed(2)),
+        unit: finishType.unit,
+        dpwhItemNumber: finishType.dpwhItemNumberRaw,
+        formulaText: `${length.toFixed(2)}m (L) × ${height.toFixed(2)}m (H) × ${sidesCount} side${sidesCount > 1 ? 's' : ''} = ${area.toFixed(2)} m²${wastePercent > 0 ? ` × ${wasteFactor.toFixed(2)} (waste)` : ''}`,
+        inputsSnapshot: {
+          grossArea_m2: wallSurface.computed?.grossArea_m2 || area,
+          sidesCount: wallAssignment.side === 'single' ? 1 : wallAssignment.side === 'both' ? 2 : wallSurface.computed?.sidesCount || 1,
+          wastePercent,
+          wasteFactor,
+        },
+        resourceKey: `wall-surface-${wallSurface.id}-finish-${finishType.id}`,
+        sourceElementId: wallSurface.id,
+        tags: [`category:${finishType.category}`, `scope:${wallAssignment.scope}`, 'type:wall-surface'],
+        assumptions: [
+          `Wall surface: ${wallSurface.name}`,
+          `Dimensions: ${length.toFixed(2)}m × ${height.toFixed(2)}m`,
+          `Gross area: ${(wallSurface.computed?.grossArea_m2 || area).toFixed(2)} m²`,
+          `Sides: ${wallAssignment.side === 'single' ? '1 (single)' : wallAssignment.side === 'both' ? '2 (both)' : wallSurface.computed?.sidesCount || 1}`,
+          wastePercent > 0 ? `Waste: ${wastePercent}%` : null,
+        ].filter(Boolean) as string[],
+        metadata: {
+          wallSurfaceId: wallSurface.id,
+          wallSurfaceName: wallSurface.name,
+          finishTypeId: finishType.id,
+          finishCategory: finishType.category,
+          scope: wallAssignment.scope,
+          grossArea_m2: wallSurface.computed?.grossArea_m2,
+          sidesCount: wallAssignment.side === 'single' ? 1 : wallAssignment.side === 'both' ? 2 : wallSurface.computed?.sidesCount,
+          wastePercent,
+        },
+      };
+
+      takeoffLines.push(takeoffLine);
+      totalWallArea += finalQuantity;
+      
+      console.log(`✓ Created wall finish takeoff: ${wallSurface.name} - ${finishType.finishName} (${finalQuantity.toFixed(2)} ${finishType.unit})`);
+
+    } catch (error: any) {
+      errors.push(`Error processing wall assignment ${wallAssignment.id}: ${error.message}`);
+    }
+  }
+
+  console.log('\n=== FINISHES CALCULATION SUMMARY ===');
+  console.log('Total takeoff lines created:', takeoffLines.length);
+  console.log('Total floor area:', totalFloorArea.toFixed(2), 'm²');
+  console.log('Total wall area:', totalWallArea.toFixed(2), 'm²');
+  console.log('Total ceiling area:', totalCeilingArea.toFixed(2), 'm²');
+  console.log('Errors:', errors.length);
+  
   return {
     takeoffLines,
     errors,
