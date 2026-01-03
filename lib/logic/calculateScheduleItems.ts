@@ -25,6 +25,7 @@ export interface ScheduleCalculationResult {
  */
 function mapCategoryToTrade(category: ScheduleItem['category']): Trade {
   const mapping: Record<ScheduleItem['category'], Trade> = {
+    // Part E - Finishing Works
     'termite-control': 'Other',
     'drainage': 'Plumbing',
     'plumbing': 'Plumbing',
@@ -38,6 +39,14 @@ function mapCategoryToTrade(category: ScheduleItem['category']): Trade {
     'insulation': 'Other',
     'acoustical': 'Other',
     'other': 'Other',
+    // Part C - Earthworks
+    'earthworks-clearing': 'Earthwork',
+    'earthworks-removal-trees': 'Earthwork',
+    'earthworks-removal-structures': 'Earthwork',
+    'earthworks-excavation': 'Earthwork',
+    'earthworks-structure-excavation': 'Earthwork',
+    'earthworks-embankment': 'Earthwork',
+    'earthworks-site-development': 'Earthwork',
   };
   return mapping[category] || 'Other';
 }

@@ -797,13 +797,178 @@ Add to existing element types:
 
 ---
 
+## Milestone 12 – Part E Schedules & Part C Earthworks
+**Status:** ✅ Complete
+
+### Scope
+- Schedule-based item entry for finishing works (Part E)
+- Doors and windows schedule with dimensional input
+- Generic finishing items with trade-based catalog filtering
+- Comprehensive earthworks estimation (Part C)
+- Multiple calculation methodologies for earthworks
+- Full integration with takeoff and BOQ systems
+
+### Part E - Schedule Items
+
+#### Deliverables
+- ✅ Doors and windows schedule component with mark-based entry
+- ✅ Dimensional input: Width × Height × Quantity auto-calculation
+- ✅ Generic schedule items component with trade filtering
+- ✅ 16 Part E trades from DPWH catalog
+- ✅ Integration with existing schedule items system
+- ✅ Proper categorization and trade mapping
+
+#### Completed Files
+**UI Components:**
+- `/components/DoorsWindowsSchedule.tsx` - Mark-based doors/windows entry
+- `/components/GenericScheduleItems.tsx` - Trade-filtered finishing items
+- `/components/SchedulesManager.tsx` - 3-tab wrapper (Doors|Windows|Other Items)
+
+**Features:**
+- Mark-based entry (D1, D2, W1, W2)
+- Auto-calculation: Area = Width × Height × Quantity
+- Trade filter dropdown (Plumbing, Carpentry, Hardware, etc.)
+- DPWH catalog integration
+- Location and basis notes
+- Unit validation
+
+### Part C - Earthworks
+
+#### Deliverables
+- ✅ 7 earthwork categories fully implemented
+- ✅ Station-based excavation with Average Area Method
+- ✅ Dimensional input for structure excavation (L×W×D×Count)
+- ✅ Dimensional input for embankment (L×W×H×Count)
+- ✅ Generic component for clearing, removal, site development
+- ✅ Full DPWH catalog integration (111 earthwork items)
+
+#### Completed Files
+**UI Components:**
+- `/components/EarthworkItems.tsx` - Generic earthwork items component
+- `/components/ExcavationStations.tsx` - Station-based excavation with Average Area Method
+- `/components/StructureExcavation.tsx` - Dimensional input (L×W×D×Count)
+- `/components/EmbankmentItems.tsx` - Dimensional input (L×W×H×Count)
+
+**Earthwork Categories:**
+1. **Clearing & Grubbing** - Site preparation
+2. **Removal of Trees** - Tree cutting and removal
+3. **Removal of Structures** - Demolition
+4. **Excavation** - Station-based with Average Area Method
+5. **Structure Excavation** - Dimensional (foundations, utilities)
+6. **Embankment** - Dimensional (fill materials)
+7. **Site Development** - General site work
+
+**Calculation Methods:**
+- **Average Area Method**: V = Σ[(A₁ + A₂)/2 × L] for station-based excavation
+- **Dimensional Method**: V = Count × (L × W × D/H) for structures and embankment
+- Count multiplier for efficiency (avoid repeating identical items)
+
+### Integration Updates
+
+#### Schema Extensions
+- `/types/index.ts` - Added earthworks categories to ScheduleItemCategory enum
+- `/models/Project.ts` - Extended category validation to include earthworks-* values
+
+#### Logic Layer
+- `/lib/logic/calculateScheduleItems.ts` - Updated trade mapping for Part C and Part E
+  - All Part E categories mapped to appropriate trades
+  - All Part C categories mapped to 'Earthwork' trade
+
+#### Classification System
+- `/lib/dpwhClassification.ts` - Enhanced subcategory classification
+  - Part C: 7 earthwork subcategories properly classified
+  - Part E: Comprehensive finishing subcategories
+  - Proper PDF grouping and organization
+
+#### API Integration
+- Part C and Part E items flow through existing schedule items API
+- Proper unit validation against DPWH catalog
+- Tag-based storage for dimensional data
+- Location/station tracking preserved
+
+### Takeoff and BOQ Integration
+
+#### Quantity Takeoff
+- ✅ Part C items appear in takeoff with 'Earthwork' trade
+- ✅ Part E schedule items appear with respective trades
+- ✅ Proper DPWH classification in PDF exports
+- ✅ Summary statistics include all schedule items
+
+#### Bill of Quantities
+- ✅ Part C items grouped under "PART C: EARTHWORK"
+- ✅ Part E items grouped under "PART E: FINISHING WORKS"
+- ✅ Proper subcategory organization
+- ✅ PDF exports include all parts (C, D, E)
+
+#### PDF Exports
+- `/components/TakeoffViewer.tsx` - Part C and E items properly classified
+- `/components/BOQViewer.tsx` - Complete DPWH part structure
+- Professional formatting with part headers and subcategories
+
+### Features Summary
+
+**Part E Schedule Items:**
+- Mark-based doors/windows entry
+- Dimensional auto-calculation
+- Trade-based catalog filtering
+- 16 finishing trades supported
+- Location and basis tracking
+
+**Part C Earthworks:**
+- Station-based excavation (civil engineering standard)
+- Dimensional excavation and embankment
+- Count multipliers for efficiency
+- 111 DPWH catalog items
+- 7 category types
+
+**Data Integrity:**
+- Unit validation against catalog
+- DPWH item verification
+- Category enum enforcement
+- Tag-based metadata storage
+
+**Traceability:**
+- Formula text in takeoff lines
+- Source takeoff IDs in BOQ
+- Location/station preservation
+- Basis notes recorded
+
+### Testing
+- ✅ Build successful (TypeScript compilation passed)
+- ✅ All 48 unit tests passing
+- ✅ Production build verified
+- ✅ Schema validation working
+- ✅ API error handling tested
+
+### Documentation
+- `/docs/PART_C_E_INTEGRATION.md` - Complete integration documentation
+  - Overview of both parts
+  - Implementation details
+  - Usage examples
+  - DPWH catalog coverage
+  - Technical notes
+
+### Notes
+- Completes civil engineering quantity estimation aspects
+- All DPWH Volume III parts C, D, E now implemented
+- Maintains strict separation of concerns (UI/Logic/Math)
+- Backward compatible with existing projects
+- Professional-grade quantity takeoff and BOQ generation
+- Ready for production use
+
+---
+
 ## Future Phases
-- Architectural works (masonry, doors & windows)
+- Part F (Electrical Works) and Part G (Mechanical/Marine Works)
 - Rate & cost analysis
+- Unit pricing integration
+- Progress tracking and variance analysis
 - Revision comparison
 - Multi-user roles
 - Polygon space boundaries (UI)
 - Wall-based geometry (advanced)
 - Visual floor plan editor
 - 3D visualization
+- Excel import/export for schedules
+- Templates for common configurations
 

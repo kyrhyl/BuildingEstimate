@@ -87,10 +87,29 @@ function getSubcategory(itemNumber: string, category?: string): string {
     if (!category) return 'Earthwork';
 
     const categoryLower = category.toLowerCase();
-    if (categoryLower.includes('clearing') || categoryLower.includes('grubbing')) return 'Clearing and Grubbing';
-    if (categoryLower.includes('excavat')) return 'Excavation';
-    if (categoryLower.includes('embankment') || categoryLower.includes('fill')) return 'Embankment';
-    if (categoryLower.includes('removal')) return 'Removal of Structures';
+    
+    // Handle specific earthworks categories
+    if (categoryLower.includes('earthworks-clearing') || categoryLower.includes('clearing') || categoryLower.includes('grubbing')) {
+      return 'Clearing and Grubbing';
+    }
+    if (categoryLower.includes('earthworks-removal-trees') || (categoryLower.includes('removal') && categoryLower.includes('tree'))) {
+      return 'Removal of Trees';
+    }
+    if (categoryLower.includes('earthworks-removal-structures') || (categoryLower.includes('removal') && categoryLower.includes('structure'))) {
+      return 'Removal of Structures';
+    }
+    if (categoryLower.includes('earthworks-excavation') || categoryLower.includes('excavat')) {
+      return 'Excavation';
+    }
+    if (categoryLower.includes('earthworks-structure-excavation') || (categoryLower.includes('structure') && categoryLower.includes('excavat'))) {
+      return 'Structure Excavation';
+    }
+    if (categoryLower.includes('earthworks-embankment') || categoryLower.includes('embankment') || categoryLower.includes('fill')) {
+      return 'Embankment';
+    }
+    if (categoryLower.includes('earthworks-site-development') || categoryLower.includes('site development')) {
+      return 'Site Development';
+    }
 
     return category;
   }

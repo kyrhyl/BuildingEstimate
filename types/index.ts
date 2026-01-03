@@ -337,6 +337,7 @@ export interface TrussDesign {
 // ===================================
 
 export type ScheduleItemCategory = 
+  // Part E - Finishing Works
   | 'termite-control'
   | 'drainage'
   | 'plumbing'
@@ -349,7 +350,15 @@ export type ScheduleItemCategory =
   | 'cladding'
   | 'insulation'
   | 'acoustical'
-  | 'other';
+  | 'other'
+  // Part C - Earthworks
+  | 'earthworks-clearing'
+  | 'earthworks-removal-trees'
+  | 'earthworks-removal-structures'
+  | 'earthworks-excavation'
+  | 'earthworks-structure-excavation'
+  | 'earthworks-embankment'
+  | 'earthworks-site-development';
 
 export interface ScheduleItem {
   id: string;
