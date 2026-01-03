@@ -212,10 +212,9 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
       // Get DPWH item number from dpwhItemNumberRaw field
       const dpwhItemNumber = line.dpwhItemNumberRaw || '';
       
-      // Get category from metadata, tags, or infer from description
+      // Get category from tags or infer from description
       const tradeTag = line.tags.find(tag => tag.startsWith('trade:'));
-      const trade = tradeTag ? tradeTag.replace('trade:', '') : '';
-      const category = (line.metadata as any)?.category || trade;
+      const category = tradeTag ? tradeTag.replace('trade:', '') : '';
       
       // Classify the item
       const classification = classifyDPWHItem(dpwhItemNumber, category);
@@ -559,13 +558,15 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {(() => {
-                  const rows: JSX.Element[] = [];
+                  const rows: React.ReactElement[] = [];
                   
                   // Filter BOQ lines by selected DPWH Part
                   const filteredLines = filterType === 'all' ? boqLines : boqLines.filter(line => {
                     const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
                     const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumberRaw || '');
-                    const classification = classifyDPWHItem(dpwhItemNo, line.category || '');
+                    const tradeTag = line.tags.find(tag => tag.startsWith('trade:'));
+                    const category = tradeTag ? tradeTag.replace('trade:', '') : '';
+                    const classification = classifyDPWHItem(dpwhItemNo, category);
                     return classification.part === filterType;
                   });
                   
@@ -575,7 +576,9 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
                   filteredLines.forEach(line => {
                     const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
                     const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumberRaw || '');
-                    const classification = classifyDPWHItem(dpwhItemNo, line.category || '');
+                    const tradeTag = line.tags.find(tag => tag.startsWith('trade:'));
+                    const category = tradeTag ? tradeTag.replace('trade:', '') : '';
+                    const classification = classifyDPWHItem(dpwhItemNo, category);
                     const part = classification.part;
                     const subcategory = classification.subcategory;
                     
@@ -589,7 +592,7 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
                   });
                   
                   // Sort parts in DPWH order
-                  const sortedParts = sortDPWHParts(Object.keys(byPartAndSubcategory));
+                  const sortedParts = Object.keys(byPartAndSubcategory).sort(sortDPWHParts);
                   
                   sortedParts.forEach(part => {
                     const subcategories = byPartAndSubcategory[part];

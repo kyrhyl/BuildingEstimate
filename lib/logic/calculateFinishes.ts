@@ -226,13 +226,9 @@ export function calculateFinishingWorks(
       // Create takeoff line
       const takeoffLine: TakeoffLine = {
         id: `wall-finish-${wallAssignment.id}`,
-        description: `${finishType.finishName} - ${wallSurface.name} (${wallAssignment.scope})`,
         trade: 'Finishes',
-        element: 'Wall Surface',
-        location: `${wallSurface.gridLine.axis}${wallSurface.gridLine.label} (${wallSurface.levelStart}-${wallSurface.levelEnd})`,
         quantity: Number(finalQuantity.toFixed(2)),
         unit: finishType.unit,
-        dpwhItemNumber: finishType.dpwhItemNumberRaw,
         formulaText: `${length.toFixed(2)}m (L) × ${height.toFixed(2)}m (H) × ${sidesCount} side${sidesCount > 1 ? 's' : ''} = ${area.toFixed(2)} m²${wastePercent > 0 ? ` × ${wasteFactor.toFixed(2)} (waste)` : ''}`,
         inputsSnapshot: {
           grossArea_m2: wallSurface.computed?.grossArea_m2 || area,
@@ -242,24 +238,22 @@ export function calculateFinishingWorks(
         },
         resourceKey: `wall-surface-${wallSurface.id}-finish-${finishType.id}`,
         sourceElementId: wallSurface.id,
-        tags: [`category:${finishType.category}`, `scope:${wallAssignment.scope}`, 'type:wall-surface'],
+        tags: [
+          `dpwh:${finishType.dpwhItemNumberRaw}`,
+          `category:${finishType.category}`, 
+          `scope:${wallAssignment.scope}`, 
+          'type:wall-surface',
+          `trade:Finishes`
+        ],
         assumptions: [
           `Wall surface: ${wallSurface.name}`,
+          `Finish: ${finishType.finishName}`,
+          `Location: ${wallSurface.gridLine.axis}${wallSurface.gridLine.label} (${wallSurface.levelStart}-${wallSurface.levelEnd})`,
           `Dimensions: ${length.toFixed(2)}m × ${height.toFixed(2)}m`,
           `Gross area: ${(wallSurface.computed?.grossArea_m2 || area).toFixed(2)} m²`,
           `Sides: ${wallAssignment.side === 'single' ? '1 (single)' : wallAssignment.side === 'both' ? '2 (both)' : wallSurface.computed?.sidesCount || 1}`,
           wastePercent > 0 ? `Waste: ${wastePercent}%` : null,
         ].filter(Boolean) as string[],
-        metadata: {
-          wallSurfaceId: wallSurface.id,
-          wallSurfaceName: wallSurface.name,
-          finishTypeId: finishType.id,
-          finishCategory: finishType.category,
-          scope: wallAssignment.scope,
-          grossArea_m2: wallSurface.computed?.grossArea_m2,
-          sidesCount: wallAssignment.side === 'single' ? 1 : wallAssignment.side === 'both' ? 2 : wallSurface.computed?.sidesCount,
-          wastePercent,
-        },
       };
 
       takeoffLines.push(takeoffLine);

@@ -35,7 +35,6 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
   const [hasCalcRun, setHasCalcRun] = useState(false);
   const [summarizedView, setSummarizedView] = useState(true);
   const [expandedParts, setExpandedParts] = useState<Set<string>>(new Set());
-  const [expandedParts, setExpandedParts] = useState<Set<string>>(new Set());
 
   // Load latest CalcRun on mount
   useEffect(() => {
@@ -107,8 +106,8 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
     : takeoffLines.filter(line => {
         // Get DPWH item number from tags or field
         const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
-        const dpwhItemNumber = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '');
-        const category = (line.metadata as any)?.category || line.trade;
+        const dpwhItemNumber = dpwhTag ? dpwhTag.replace('dpwh:', '') : '';
+        const category = line.trade;
         
         const classification = classifyDPWHItem(dpwhItemNumber, category);
         return classification.part.startsWith(filterType);
@@ -194,10 +193,10 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
     takeoffLines.forEach(line => {
       // Get DPWH item number from tags (dpwh:xxx) or direct field
       const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
-      const dpwhItemNumber = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '');
+      const dpwhItemNumber = dpwhTag ? dpwhTag.replace('dpwh:', '') : '';
       
-      // Get category from metadata or infer from trade
-      const category = (line.metadata as any)?.category || line.trade;
+      // Get category from trade
+      const category = line.trade;
       
       // Classify the item
       const classification = classifyDPWHItem(dpwhItemNumber, category);
@@ -267,10 +266,10 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
           
           // Extract DPWH item number from tags or field
           const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
-          const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '-');
+          const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : '-';
           
           return [
-            line.description || templateTag,
+            line.resourceKey || templateTag,
             typeTag,
             levelTag,
             line.unit === 'kg' 
@@ -560,15 +559,16 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
               </thead>
               <tbody>
                 {(() => {
-                  const rows: JSX.Element[] = [];
+                  const rows: React.ReactElement[] = [];
                   
                   // Group lines by DPWH Part and Subcategory
                   const byPartAndSubcategory: Record<string, Record<string, TakeoffLine[]>> = {};
                   
                   filteredLines.forEach(line => {
                     const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
-                    const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '');
-                    const classification = classifyDPWHItem(dpwhItemNo, line.category || '');
+                    const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : '';
+                    const tradeCategory = line.trade;
+                    const classification = classifyDPWHItem(dpwhItemNo, tradeCategory);
                     const part = classification.part;
                     const subcategory = classification.subcategory;
                     
@@ -582,7 +582,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                   });
                   
                   // Sort parts in DPWH order
-                  const sortedParts = sortDPWHParts(Object.keys(byPartAndSubcategory));
+                  const sortedParts = Object.keys(byPartAndSubcategory).sort(sortDPWHParts);
                   
                   sortedParts.forEach(part => {
                     const subcategories = byPartAndSubcategory[part];
@@ -636,7 +636,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                           
                           subcategoryLines.forEach(line => {
                             const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
-                            const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '-');
+                            const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : '-';
                             const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'N/A';
                             const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') || 'N/A';
                             const key = `${dpwhItemNo}_${templateTag}_${levelTag}`;
@@ -661,7 +661,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                           const instanceCount = isGrouped ? parseInt(line.formulaText.split(' ')[0]) : 0;
                           
                           const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
-                          const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumber || '-');
+                          const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : '-';
                           
                           const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'N/A';
                           const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
@@ -671,7 +671,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                           rows.push(
                             <tr key={`line-${line.id}`} className="hover:bg-blue-50">
                               <td className="px-4 py-2 text-xs font-mono text-gray-700">{dpwhItemNo}</td>
-                              <td className="px-4 py-2 text-sm text-gray-900">{line.description || templateTag}</td>
+                              <td className="px-4 py-2 text-sm text-gray-900">{line.resourceKey || templateTag}</td>
                               <td className="px-4 py-2 text-sm text-gray-600">{levelTag}</td>
                               {summarizedView && (
                                 <td className="px-4 py-2 text-sm text-center font-semibold text-gray-700">
