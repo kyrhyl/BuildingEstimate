@@ -21,6 +21,7 @@ interface CatalogItem {
   unit: string;
   category: string;
   trade: string;
+  part: string;
 }
 
 export default function ExcavationStations({ projectId }: ExcavationStationsProps) {
@@ -95,13 +96,13 @@ export default function ExcavationStations({ projectId }: ExcavationStationsProp
       const res = await fetch('/api/catalog?limit=5000');
       if (res.ok) {
         const response = await res.json();
-        const allResults: CatalogItem[] = response.items || [];
+        const allResults: CatalogItem[] = response.data?.items || response.items || [];
         
-        // Filter to excavation items (Part C - 800 series)
+        // Filter to Part C excavation items (item 802 series)
         const excavationItems = allResults.filter(item =>
-          (item.trade === 'Earthwork' || item.itemNumber.startsWith('8')) &&
-          (item.description?.toLowerCase().includes('excavation') ||
-           item.description?.toLowerCase().includes('roadway'))
+          item.part === 'PART C' && 
+          item.category === 'Earthworks' &&
+          item.itemNumber.startsWith('802')
         );
         
         excavationItems.sort((a, b) => a.itemNumber.localeCompare(b.itemNumber));

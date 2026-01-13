@@ -72,20 +72,16 @@ export default function GenericScheduleItems({ projectId }: GenericScheduleItems
       const res = await fetch('/api/catalog?limit=5000');
       if (res.ok) {
         const response = await res.json();
-        const allResults: CatalogItem[] = response.items || [];
+        const allResults: CatalogItem[] = response.data?.items || response.items || [];
         
-        // Filter to Part E trades only
+        // Filter to Part E only
         let partEResults = allResults.filter(item => 
-          PART_E_TRADES.some(trade => 
-            item.trade?.toLowerCase().includes(trade.toLowerCase()) ||
-            item.category?.toLowerCase().includes(trade.toLowerCase())
-          )
+          item.part === 'PART E'
         );
 
-        // Further filter by selected trade if not "all"
+        // Further filter by selected category if not "all"
         if (selectedTrade !== 'all') {
           partEResults = partEResults.filter(item =>
-            item.trade?.toLowerCase().includes(selectedTrade.toLowerCase()) ||
             item.category?.toLowerCase().includes(selectedTrade.toLowerCase())
           );
         }

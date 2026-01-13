@@ -44,14 +44,25 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
   const [formMainBarSpacing, setFormMainBarSpacing] = useState('');
   const [formStirrupDiameter, setFormStirrupDiameter] = useState('');
   const [formStirrupSpacing, setFormStirrupSpacing] = useState('');
+  const [formWebBarCount, setFormWebBarCount] = useState('');
+  const [formWebBarDiameter, setFormWebBarDiameter] = useState('');
   const [formSecondaryBarDiameter, setFormSecondaryBarDiameter] = useState('');
+  const [formRequiresFormwork, setFormRequiresFormwork] = useState(true);
   const [formSecondaryBarSpacing, setFormSecondaryBarSpacing] = useState('');
   const [formDpwhRebarItem, setFormDpwhRebarItem] = useState('');
   
   // Get concrete and rebar items from catalog
   const catalog = dpwhCatalog as { items: DPWHCatalogItem[] };
-  const concreteItems = catalog.items.filter(item => item.trade === 'Concrete');
-  const rebarItems = catalog.items.filter(item => item.trade === 'Rebar');
+  const concreteItems = catalog.items.filter(item => 
+    item.part === 'PART D' && 
+    item.category === 'Concrete Works' && 
+    (item.itemNumber.startsWith('900') || item.itemNumber.startsWith('901'))
+  );
+  const rebarItems = catalog.items.filter(item => 
+    item.part === 'PART D' && 
+    item.category === 'Concrete Works' && 
+    item.itemNumber.startsWith('902')
+  );
   
   // Standard rebar diameters (mm)
   const rebarDiameters = [10, 12, 16, 20, 25, 28, 32, 36, 40];
@@ -91,8 +102,6 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
       }
       
       const data = await res.json();
-      console.log('=== SAVED TEMPLATES ===');
-      console.log('Returned templates:', data.templates);
       setTemplates(data.templates);
       return true;
     } catch (err) {
@@ -120,9 +129,12 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
     setFormMainBarSpacing('');
     setFormStirrupDiameter('');
     setFormStirrupSpacing('');
+    setFormWebBarCount('');
+    setFormWebBarDiameter('');
     setFormSecondaryBarDiameter('');
     setFormSecondaryBarSpacing('');
     setFormDpwhRebarItem('');
+    setFormRequiresFormwork(true);
     setEditingId(null);
   };
 
@@ -215,6 +227,13 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
       };
     }
     
+    if (formWebBarCount && formWebBarDiameter) {
+      rebarConfig.webBars = {
+        count: parseInt(formWebBarCount),
+        diameter: parseInt(formWebBarDiameter),
+      };
+    }
+    
     if (formSecondaryBarDiameter && formSecondaryBarSpacing) {
       rebarConfig.secondaryBars = {
         diameter: parseInt(formSecondaryBarDiameter),
@@ -233,6 +252,7 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
       properties,
       dpwhItemNumber: formDpwhItemNumber || undefined,
       rebarConfig: Object.keys(rebarConfig).length > 0 ? rebarConfig : undefined,
+      requiresFormwork: formRequiresFormwork,
     };
 
     let updatedTemplates: ElementTemplate[];
@@ -261,11 +281,17 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
       setFormMainBarSpacing(template.rebarConfig.mainBars?.spacing?.toString() || '');
       setFormStirrupDiameter(template.rebarConfig.stirrups?.diameter?.toString() || '');
       setFormStirrupSpacing(template.rebarConfig.stirrups?.spacing?.toString() || '');
+      setFormWebBarCount(template.rebarConfig.webBars?.count?.toString() || '');
+      setFormWebBarDiameter(template.rebarConfig.webBars?.diameter?.toString() || '');
       setFormSecondaryBarDiameter(template.rebarConfig.secondaryBars?.diameter?.toString() || '');
       setFormSecondaryBarSpacing(template.rebarConfig.secondaryBars?.spacing?.toString() || '');
       setFormDpwhRebarItem(template.rebarConfig.dpwhRebarItem || '');
     }
+  
+    // Load formwork setting
+    setFormRequiresFormwork(template.requiresFormwork !== false);
 
+    // Load type-specific properties
     if (template.type === 'beam') {
       setFormWidth(template.properties.width?.toString() || '');
       setFormHeight(template.properties.height?.toString() || '');
@@ -337,7 +363,11 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
     }
     
     if (template.rebarConfig.stirrups) {
-      parts.push(`${template.rebarConfig.stirrups.diameter}mm @ ${(template.rebarConfig.stirrups.spacing * 1000).toFixed(0)}mm`);
+      parts.push(`Stirrups: ${template.rebarConfig.stirrups.diameter}mm @ ${(template.rebarConfig.stirrups.spacing * 1000).toFixed(0)}mm`);
+    }
+    
+    if (template.rebarConfig.webBars) {
+      parts.push(`Web: ${template.rebarConfig.webBars.count}-${template.rebarConfig.webBars.diameter}mm`);
     }
     
     if (template.rebarConfig.secondaryBars) {
@@ -739,6 +769,42 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
             </div>
           )}
 
+          {/* Web Bars (Beams only) */}
+          {formType === 'beam' && (
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Web Bars (Vertical Shear Reinforcement)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input
+                    type="number"
+                    placeholder="Count"
+                    value={formWebBarCount}
+                    onChange={(e) => setFormWebBarCount(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    min="0"
+                    step="1"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Number of web bars</p>
+                </div>
+                <div>
+                  <select
+                    value={formWebBarDiameter}
+                    onChange={(e) => setFormWebBarDiameter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Diameter (mm)</option>
+                    {rebarDiameters.map(d => (
+                      <option key={d} value={d}>{d}mm</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Bar diameter</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Secondary Bars (Slabs only) */}
           {formType === 'slab' && (
             <div className="mb-3">
@@ -804,6 +870,22 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
           </div>
         </div>
 
+        {/* Formwork Toggle */}
+        <div className="mb-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formRequiresFormwork}
+              onChange={(e) => setFormRequiresFormwork(e.target.checked)}
+              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+            />
+            <span className="text-sm font-medium text-gray-700">Requires Formwork</span>
+          </label>
+          <p className="text-xs text-gray-500 mt-1 ml-6">
+            Uncheck if this element doesn't need formwork (e.g., precast, exposed aggregate, etc.)
+          </p>
+        </div>
+
         {/* Action Buttons */}
         <div className="flex gap-2">
           <button
@@ -844,6 +926,11 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
                     {formatRebarConfig(template) && (
                       <div className="text-xs text-green-600 mt-1">Rebar: {formatRebarConfig(template)}</div>
                     )}
+                    <div className="text-xs mt-1">
+                      <span className={template.requiresFormwork !== false ? "text-purple-600" : "text-gray-500"}>
+                        Formwork: {template.requiresFormwork !== false ? "Required" : "Not Required"}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex gap-1 ml-2">
                     <button
@@ -883,6 +970,11 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
                     {formatRebarConfig(template) && (
                       <div className="text-xs text-green-600 mt-1">Rebar: {formatRebarConfig(template)}</div>
                     )}
+                    <div className="text-xs mt-1">
+                      <span className={template.requiresFormwork !== false ? "text-purple-600" : "text-gray-500"}>
+                        Formwork: {template.requiresFormwork !== false ? "Required" : "Not Required"}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex gap-1 ml-2">
                     <button
@@ -922,6 +1014,11 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
                     {formatRebarConfig(template) && (
                       <div className="text-xs text-green-600 mt-1">Rebar: {formatRebarConfig(template)}</div>
                     )}
+                    <div className="text-xs mt-1">
+                      <span className={template.requiresFormwork !== false ? "text-purple-600" : "text-gray-500"}>
+                        Formwork: {template.requiresFormwork !== false ? "Required" : "Not Required"}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex gap-1 ml-2">
                     <button
@@ -961,6 +1058,11 @@ export default function ElementTemplatesEditor({ projectId }: ElementTemplatesEd
                     {formatRebarConfig(template) && (
                       <div className="text-xs text-green-600 mt-1">Rebar: {formatRebarConfig(template)}</div>
                     )}
+                    <div className="text-xs mt-1">
+                      <span className={template.requiresFormwork !== false ? "text-purple-600" : "text-gray-500"}>
+                        Formwork: {template.requiresFormwork !== false ? "Required" : "Not Required"}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex gap-1 ml-2">
                     <button

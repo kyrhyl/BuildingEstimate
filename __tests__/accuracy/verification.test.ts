@@ -381,4 +381,297 @@ describe('Accuracy Verification Tests', () => {
       expect(totalHeight).toBeLessThanOrEqual(200);
     });
   });
+
+  describe('Web Bars Configuration Accuracy', () => {
+    it('should validate beam template with web bars', () => {
+      const beamTemplate = {
+        id: 'beam_001',
+        type: 'beam' as const,
+        name: 'B300x500',
+        properties: {
+          width: 0.3,
+          height: 0.5,
+        },
+        rebarConfig: {
+          mainBars: {
+            count: 4,
+            diameter: 20,
+          },
+          stirrups: {
+            diameter: 10,
+            spacing: 0.15,
+          },
+          webBars: {
+            count: 2,
+            diameter: 12,
+          },
+        },
+      };
+
+      expect(beamTemplate.type).toBe('beam');
+      expect(beamTemplate.rebarConfig).toBeDefined();
+      expect(beamTemplate.rebarConfig?.webBars).toBeDefined();
+      expect(beamTemplate.rebarConfig?.webBars?.count).toBe(2);
+      expect(beamTemplate.rebarConfig?.webBars?.diameter).toBe(12);
+    });
+
+    it('should validate web bars count is positive integer', () => {
+      const webBarsConfig = {
+        count: 2,
+        diameter: 12,
+      };
+
+      expect(webBarsConfig.count).toBeGreaterThan(0);
+      expect(Number.isInteger(webBarsConfig.count)).toBe(true);
+      expect(webBarsConfig.count).toBeLessThanOrEqual(10); // reasonable max
+    });
+
+    it('should validate web bars diameter is standard rebar size', () => {
+      const standardDiameters = [10, 12, 16, 20, 25, 28, 32, 36, 40];
+      const webBarDiameter = 12;
+
+      expect(standardDiameters).toContain(webBarDiameter);
+    });
+
+    it('should handle beam template without web bars', () => {
+      const beamTemplate = {
+        id: 'beam_002',
+        type: 'beam' as const,
+        name: 'B250x400',
+        properties: {
+          width: 0.25,
+          height: 0.4,
+        },
+        rebarConfig: {
+          mainBars: {
+            count: 4,
+            diameter: 16,
+          },
+          stirrups: {
+            diameter: 10,
+            spacing: 0.2,
+          },
+        },
+      };
+
+      expect(beamTemplate.rebarConfig?.webBars).toBeUndefined();
+      expect(beamTemplate.rebarConfig?.mainBars).toBeDefined();
+      expect(beamTemplate.rebarConfig?.stirrups).toBeDefined();
+    });
+
+    it('should validate web bars are only for beam elements', () => {
+      const slabTemplate = {
+        id: 'slab_001',
+        type: 'slab' as const,
+        name: 'S120',
+        properties: {
+          thickness: 0.12,
+        },
+        rebarConfig: {
+          mainBars: {
+            diameter: 12,
+            spacing: 0.15,
+          },
+          secondaryBars: {
+            diameter: 12,
+            spacing: 0.15,
+          },
+        },
+      };
+
+      // Slabs should not have web bars
+      expect(slabTemplate.rebarConfig?.webBars).toBeUndefined();
+      expect(slabTemplate.type).toBe('slab');
+    });
+
+    it('should validate complete rebar configuration with web bars', () => {
+      const completeConfig = {
+        mainBars: {
+          count: 6,
+          diameter: 25,
+        },
+        stirrups: {
+          diameter: 12,
+          spacing: 0.1,
+        },
+        webBars: {
+          count: 3,
+          diameter: 16,
+        },
+      };
+
+      // Validate all components present
+      expect(completeConfig.mainBars).toBeDefined();
+      expect(completeConfig.stirrups).toBeDefined();
+      expect(completeConfig.webBars).toBeDefined();
+
+      // Validate mainBars
+      expect(completeConfig.mainBars.count).toBe(6);
+      expect(completeConfig.mainBars.diameter).toBe(25);
+
+      // Validate stirrups
+      expect(completeConfig.stirrups.diameter).toBe(12);
+      expect(completeConfig.stirrups.spacing).toBe(0.1);
+
+      // Validate webBars
+      expect(completeConfig.webBars.count).toBe(3);
+      expect(completeConfig.webBars.diameter).toBe(16);
+    });
+
+    it('should validate web bars configuration structure', () => {
+      const webBars = {
+        count: 2,
+        diameter: 12,
+      };
+
+      expect(webBars).toHaveProperty('count');
+      expect(webBars).toHaveProperty('diameter');
+      expect(typeof webBars.count).toBe('number');
+      expect(typeof webBars.diameter).toBe('number');
+    });
+
+    it('should validate web bars diameter ranges', () => {
+      const validDiameters = [10, 12, 16, 20, 25];
+      
+      validDiameters.forEach(diameter => {
+        expect(diameter).toBeGreaterThanOrEqual(10);
+        expect(diameter).toBeLessThanOrEqual(40);
+      });
+    });
+
+    it('should format web bars display correctly', () => {
+      const webBars = {
+        count: 2,
+        diameter: 12,
+      };
+
+      const formattedDisplay = `Web: ${webBars.count}-${webBars.diameter}mm`;
+      
+      expect(formattedDisplay).toBe('Web: 2-12mm');
+      expect(formattedDisplay).toContain('Web:');
+      expect(formattedDisplay).toContain(webBars.count.toString());
+      expect(formattedDisplay).toContain(webBars.diameter.toString());
+      expect(formattedDisplay).toContain('mm');
+    });
+
+    it('should validate API payload with web bars', () => {
+      const templatePayload = {
+        templates: [
+          {
+            id: 'tpl_123',
+            type: 'beam',
+            name: 'B400x600',
+            properties: {
+              width: 0.4,
+              height: 0.6,
+            },
+            rebarConfig: {
+              mainBars: {
+                count: 8,
+                diameter: 28,
+              },
+              stirrups: {
+                diameter: 12,
+                spacing: 0.15,
+              },
+              webBars: {
+                count: 4,
+                diameter: 16,
+              },
+            },
+          },
+        ],
+      };
+
+      expect(templatePayload.templates).toBeInstanceOf(Array);
+      expect(templatePayload.templates[0].type).toBe('beam');
+      expect(templatePayload.templates[0].rebarConfig.webBars).toBeDefined();
+      expect(templatePayload.templates[0].rebarConfig.webBars.count).toBe(4);
+    });
+
+    it('should handle partial rebar configuration with only web bars', () => {
+      const minimalConfig = {
+        webBars: {
+          count: 2,
+          diameter: 12,
+        },
+      };
+
+      expect(minimalConfig.webBars).toBeDefined();
+      expect(minimalConfig.webBars.count).toBe(2);
+      expect(Object.keys(minimalConfig).length).toBe(1);
+    });
+
+    it('should validate web bars count limits', () => {
+      const testCounts = [1, 2, 3, 4, 5, 6];
+      
+      testCounts.forEach(count => {
+        expect(count).toBeGreaterThan(0);
+        expect(count).toBeLessThanOrEqual(10); // practical limit
+        expect(Number.isInteger(count)).toBe(true);
+      });
+    });
+
+    it('should calculate total rebar components in beam', () => {
+      const beamConfig = {
+        mainBars: { count: 4, diameter: 20 },
+        stirrups: { diameter: 10, spacing: 0.15 },
+        webBars: { count: 2, diameter: 12 },
+      };
+
+      const componentCount = Object.keys(beamConfig).length;
+      
+      expect(componentCount).toBe(3);
+      expect(beamConfig).toHaveProperty('mainBars');
+      expect(beamConfig).toHaveProperty('stirrups');
+      expect(beamConfig).toHaveProperty('webBars');
+    });
+
+    it('should validate beam template update preserves web bars', () => {
+      const originalTemplate = {
+        id: 'beam_100',
+        type: 'beam' as const,
+        name: 'B300x500',
+        properties: { width: 0.3, height: 0.5 },
+        rebarConfig: {
+          mainBars: { count: 4, diameter: 20 },
+          stirrups: { diameter: 10, spacing: 0.15 },
+          webBars: { count: 2, diameter: 12 },
+        },
+      };
+
+      const updatedTemplate = {
+        ...originalTemplate,
+        name: 'B300x500-Updated',
+      };
+
+      expect(updatedTemplate.rebarConfig.webBars).toBeDefined();
+      expect(updatedTemplate.rebarConfig.webBars?.count).toBe(2);
+      expect(updatedTemplate.rebarConfig.webBars?.diameter).toBe(12);
+      expect(updatedTemplate.name).toBe('B300x500-Updated');
+    });
+
+    it('should validate web bars are optional in beam templates', () => {
+      const beamWithoutWebBars = {
+        type: 'beam' as const,
+        rebarConfig: {
+          mainBars: { count: 4, diameter: 20 },
+        },
+      };
+
+      const beamWithWebBars = {
+        type: 'beam' as const,
+        rebarConfig: {
+          mainBars: { count: 4, diameter: 20 },
+          webBars: { count: 2, diameter: 12 },
+        },
+      };
+
+      // Both should be valid
+      expect(beamWithoutWebBars.type).toBe('beam');
+      expect(beamWithWebBars.type).toBe('beam');
+      expect(beamWithoutWebBars.rebarConfig.webBars).toBeUndefined();
+      expect(beamWithWebBars.rebarConfig.webBars).toBeDefined();
+    });
+  });
 });

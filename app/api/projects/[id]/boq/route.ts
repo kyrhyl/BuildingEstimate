@@ -35,23 +35,22 @@ export async function POST(
 
     // Process concrete, rebar, formwork, finishes, roofing, and schedule items
     const concreteTakeoffLines = takeoffLines.filter(
-      line => line.trade === 'Concrete'
+      line => line.tags.some(tag => tag === 'category:Concrete Works')
     );
     const rebarTakeoffLines = takeoffLines.filter(
-      line => line.trade === 'Rebar'
+      line => line.tags.some(tag => tag === 'category:Reinforcing Steel')
     );
     const formworkTakeoffLines = takeoffLines.filter(
-      line => line.trade === 'Formwork'
+      line => line.tags.some(tag => tag === 'category:Formwork and Falseworks')
     );
     const finishesTakeoffLines = takeoffLines.filter(
-      line => line.trade === 'Finishes'
+      line => line.tags.some(tag => tag === 'category:Finishing Works')
     );
     const roofingTakeoffLines = takeoffLines.filter(
-      line => line.trade === 'Roofing'
+      line => line.tags.some(tag => tag === 'category:Roofing Works')
     );
     const scheduleItemsTakeoffLines = takeoffLines.filter(
-      line => line.trade !== 'Concrete' && line.trade !== 'Rebar' && 
-              line.trade !== 'Formwork' && line.trade !== 'Finishes' && line.trade !== 'Roofing'
+      line => !line.tags.some(tag => ['category:Concrete Works', 'category:Reinforcing Steel', 'category:Formwork and Falseworks', 'category:Finishing Works', 'category:Roofing Works'].includes(tag))
     );
 
     if (concreteTakeoffLines.length === 0 && rebarTakeoffLines.length === 0 && formworkTakeoffLines.length === 0 && 
@@ -66,25 +65,25 @@ export async function POST(
       });
     }
 
-    // Get catalog items
+    // Get catalog items by part and category/trade
     const concreteCatalogItems = dpwhCatalog.filter(
-      item => item.trade === 'Concrete'
+      item => item.part === 'PART D' && item.trade === 'Structural Concrete'
     );
     const rebarCatalogItems = dpwhCatalog.filter(
-      item => item.trade === 'Rebar'
+      item => item.part === 'PART D' && item.trade === 'Reinforcement'
     );
     const formworkCatalogItems = dpwhCatalog.filter(
-      item => item.trade === 'Formwork'
+      item => item.part === 'PART D' && item.trade === 'Formwork'
     );
 
     const errors: string[] = [];
     const warnings: string[] = [];
 
     const defaultConcreteItem = concreteCatalogItems.find(
-      item => item.itemNumber === '900 (1) a' // Structural Concrete, Class A, 3000 psi, 7 days
+      item => item.itemNumber === '900 (1)a' // Structural Concrete, Class A, 3000 psi, 7 days
     );
     const defaultRebarItem = rebarCatalogItems.find(
-      item => item.itemNumber === '902 (1) a2' // Grade 60 deformed bars
+      item => item.itemNumber === '902 (1)a2' // Grade 60 deformed bars
     );
     const defaultFormworkItem = formworkCatalogItems.find(
       item => item.itemNumber === '903 (1)' // Formwork for Concrete Structures
@@ -172,7 +171,8 @@ export async function POST(
         sourceTakeoffLineIds,
         tags: [
           `dpwh:${catalogItem.itemNumber}`,
-          `trade:Concrete`,
+          `part:${catalogItem.part}`,
+          `category:${catalogItem.category}`,
           `elements:${Object.entries(elementTypeCounts).map(([type, count]) => `${count} ${type}`).join(', ')}`,
           ...Array.from(allTags).filter(tag => !tag.startsWith('type:')),
         ],
@@ -235,7 +235,8 @@ export async function POST(
         sourceTakeoffLineIds,
         tags: [
           `dpwh:${catalogItem.itemNumber}`,
-          `trade:Rebar`,
+          `part:${catalogItem.part}`,
+          `category:${catalogItem.category}`,
           `elements:${Object.entries(elementTypeCounts).map(([type, count]) => `${count} ${type}`).join(', ')}`,
           `rebar-types:${Object.entries(rebarTypeCounts).map(([type, count]) => `${count} ${type}`).join(', ')}`,
           ...Array.from(allTags).filter(tag => !tag.startsWith('type:') && !tag.startsWith('rebar:')),
@@ -293,7 +294,8 @@ export async function POST(
           sourceTakeoffLineIds,
           tags: [
             `dpwh:${catalogItem.itemNumber}`,
-            `trade:Formwork`,
+            `part:${catalogItem.part}`,
+            `category:${catalogItem.category}`,
             `elements:${Object.entries(elementTypeCounts).map(([type, count]) => `${count} ${type}`).join(', ')}`,
             ...Array.from(allTags).filter(tag => !tag.startsWith('type:')),
           ],
@@ -366,7 +368,8 @@ export async function POST(
         sourceTakeoffLineIds,
         tags: [
           `dpwh:${catalogItem.itemNumber}`,
-          `trade:Finishes`,
+          `part:${catalogItem.part}`,
+          `category:${catalogItem.category}`,
           `spaces:${Object.entries(spaceCounts).map(([space, count]) => `${count}× ${space}`).join(', ')}`,
           `categories:${Object.entries(categoryCounts).map(([cat, count]) => `${count}× ${cat}`).join(', ')}`,
           ...Array.from(allTags).filter(tag => !tag.startsWith('spaceName:') && !tag.startsWith('category:')),
@@ -422,7 +425,8 @@ export async function POST(
         sourceTakeoffLineIds,
         tags: [
           `dpwh:${catalogItem.itemNumber}`,
-          `trade:Roofing`,
+          `part:${catalogItem.part}`,
+          `category:${catalogItem.category}`,
           `roofPlanes:${Object.entries(roofPlaneCounts).map(([name, count]) => `${count}× ${name}`).join(', ')}`,
           ...Array.from(allTags).filter(tag => !tag.startsWith('roofPlane:')),
         ],
@@ -477,7 +481,8 @@ export async function POST(
         sourceTakeoffLineIds,
         tags: [
           `dpwh:${catalogItem.itemNumber}`,
-          `trade:${lines[0].trade}`,
+          `part:${catalogItem.part}`,
+          `category:${catalogItem.category}`,
           `categories:${Object.entries(categoryCounts).map(([cat, count]) => `${count}× ${cat}`).join(', ')}`,
           ...Array.from(allTags).filter(tag => !tag.startsWith('category:')),
         ],
@@ -487,13 +492,13 @@ export async function POST(
     }
 
     // Calculate summary
-    const concreteLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Concrete'));
-    const rebarLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Rebar'));
-    const formworkLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Formwork'));
-    const finishesLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Finishes'));
-    const roofingLines = boqLines.filter(line => line.tags.some(tag => tag === 'trade:Roofing'));
+    const concreteLines = boqLines.filter(line => line.tags.some(tag => tag === 'category:Concrete Works'));
+    const rebarLines = boqLines.filter(line => line.tags.some(tag => tag === 'category:Concrete Works' && line.dpwhItemNumberRaw.startsWith('902')));
+    const formworkLines = boqLines.filter(line => line.tags.some(tag => tag === 'category:Concrete Works' && line.dpwhItemNumberRaw.startsWith('903')));
+    const finishesLines = boqLines.filter(line => line.tags.some(tag => tag.startsWith('category:') && tag.includes('Finish')));
+    const roofingLines = boqLines.filter(line => line.tags.some(tag => tag.startsWith('category:') && tag.includes('Roof')));
     const scheduleLines = boqLines.filter(line => 
-      !line.tags.some(tag => ['trade:Concrete', 'trade:Rebar', 'trade:Formwork', 'trade:Finishes', 'trade:Roofing'].includes(tag))
+      !line.tags.some(tag => tag === 'category:Concrete Works' || tag.includes('Finish') || tag.includes('Roof'))
     );
     
     const totalConcreteQty = concreteLines.reduce((sum, line) => sum + line.quantity, 0);
@@ -516,21 +521,49 @@ export async function POST(
       },
     };
 
-    // Update CalcRun with BOQ data if runId provided
+    // Create or update CalcRun with BOQ data
+    let responseRunId = runId;
+    let calcRun = null;
+    
     if (runId) {
-      const calcRun = await CalcRun.findOne({ runId, projectId: id });
-      if (calcRun) {
-        calcRun.boqLines = boqLines;
-        if (calcRun.summary) {
-          calcRun.summary.boqLineCount = boqLines.length;
-        }
-        await calcRun.save();
+      // Try to find existing CalcRun
+      calcRun = await CalcRun.findOne({ runId, projectId: id });
+    }
+    
+    if (calcRun) {
+      // Update existing CalcRun
+      calcRun.boqLines = boqLines;
+      if (calcRun.summary) {
+        calcRun.summary.boqLineCount = boqLines.length;
       }
+      await calcRun.save();
+      responseRunId = calcRun.runId;
+    } else {
+      // Create new CalcRun
+      const newRunId = `run-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      calcRun = await CalcRun.create({
+        runId: newRunId,
+        projectId: id,
+        timestamp: new Date(),
+        status: 'completed',
+        summary: {
+          totalConcrete: totalConcreteQty,
+          totalRebar: totalRebarQty,
+          totalFormwork: totalFormworkQty,
+          takeoffLineCount: takeoffLines.length,
+          boqLineCount: boqLines.length,
+        },
+        takeoffLines: takeoffLines,
+        boqLines: boqLines,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+      responseRunId = newRunId;
     }
 
     return NextResponse.json({
       boqLines,
       summary,
+      runId: responseRunId,
       warnings: warnings.length > 0 ? warnings : undefined,
       errors: errors.length > 0 ? errors : undefined,
     });

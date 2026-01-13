@@ -1,0 +1,171 @@
+{
+  "metadata": {
+    "projectId": "project-123",
+    "projectName": "Sample Building Project",
+    "projectDescription": "Two-story residential building with concrete structure",
+    "exportDate": "2026-01-08T10:30:00.000Z",
+    "calcRunId": "run-abc-123",
+    "calcRunTimestamp": "2026-01-08T10:25:00.000Z",
+    "status": "completed"
+  },
+  "summary": {
+    "totalConcrete": 45.678,
+    "totalRebar": 3245.67,
+    "totalFormwork": 234.56,
+    "takeoffLineCount": 25,
+    "boqLineCount": 12
+  },
+  "boq": {
+    "totalLines": 12,
+    "categories": {
+      "Concrete": {
+        "count": 4,
+        "totalQuantity": 45.678,
+        "items": [
+          {
+            "id": "boq-1",
+            "itemNumber": "900 (1) a",
+            "description": "Structural Concrete, Class A (Beams, Girders, Slabs, etc.)",
+            "unit": "Cubic Meter",
+            "quantity": 28.450,
+            "tags": ["category:Concrete", "dpwh:900 (1) a", "type:beam"]
+          },
+          {
+            "id": "boq-2",
+            "itemNumber": "900 (2) a",
+            "description": "Structural Concrete, Class A (Columns)",
+            "unit": "Cubic Meter",
+            "quantity": 12.345,
+            "tags": ["category:Concrete", "dpwh:900 (2) a", "type:column"]
+          },
+          {
+            "id": "boq-3",
+            "itemNumber": "900 (3) a",
+            "description": "Structural Concrete, Class A (Footings)",
+            "unit": "Cubic Meter",
+            "quantity": 4.883,
+            "tags": ["category:Concrete", "dpwh:900 (3) a", "type:foundation"]
+          }
+        ]
+      },
+      "Rebar": {
+        "count": 6,
+        "totalQuantity": 3245.67,
+        "items": [
+          {
+            "id": "boq-4",
+            "itemNumber": "902 (1) a2",
+            "description": "Reinforcing Steel Bars, Deformed, 12mm diameter",
+            "unit": "Kilogram",
+            "quantity": 845.23,
+            "tags": ["category:Rebar", "dpwh:902 (1) a2", "diameter:12mm"]
+          },
+          {
+            "id": "boq-5",
+            "itemNumber": "902 (1) a3",
+            "description": "Reinforcing Steel Bars, Deformed, 16mm diameter",
+            "unit": "Kilogram",
+            "quantity": 1234.56,
+            "tags": ["category:Rebar", "dpwh:902 (1) a3", "diameter:16mm"]
+          },
+          {
+            "id": "boq-6",
+            "itemNumber": "902 (1) a4",
+            "description": "Reinforcing Steel Bars, Deformed, 20mm diameter",
+            "unit": "Kilogram",
+            "quantity": 1165.88,
+            "tags": ["category:Rebar", "dpwh:902 (1) a4", "diameter:20mm"]
+          }
+        ]
+      },
+      "Formwork": {
+        "count": 2,
+        "totalQuantity": 234.56,
+        "items": [
+          {
+            "id": "boq-7",
+            "itemNumber": "901 (1)",
+            "description": "Formwork for Beams, Girders, and Slabs",
+            "unit": "Square Meter",
+            "quantity": 156.78,
+            "tags": ["category:Formwork", "dpwh:901 (1)", "type:beam"]
+          },
+          {
+            "id": "boq-8",
+            "itemNumber": "901 (2)",
+            "description": "Formwork for Columns",
+            "unit": "Square Meter",
+            "quantity": 77.78,
+            "tags": ["category:Formwork", "dpwh:901 (2)", "type:column"]
+          }
+        ]
+      }
+    },
+    "lines": [
+      {
+        "id": "boq-1",
+        "itemNumber": "900 (1) a",
+        "description": "Structural Concrete, Class A (Beams, Girders, Slabs, etc.)",
+        "unit": "Cubic Meter",
+        "quantity": 28.450,
+        "tags": ["category:Concrete", "dpwh:900 (1) a", "type:beam"]
+      },
+      {
+        "id": "boq-2",
+        "itemNumber": "900 (2) a",
+        "description": "Structural Concrete, Class A (Columns)",
+        "unit": "Cubic Meter",
+        "quantity": 12.345,
+        "tags": ["category:Concrete", "dpwh:900 (2) a", "type:column"]
+      },
+      {
+        "id": "boq-3",
+        "itemNumber": "900 (3) a",
+        "description": "Structural Concrete, Class A (Footings)",
+        "unit": "Cubic Meter",
+        "quantity": 4.883,
+        "tags": ["category:Concrete", "dpwh:900 (3) a", "type:foundation"]
+      },
+      {
+        "id": "boq-4",
+        "itemNumber": "902 (1) a2",
+        "description": "Reinforcing Steel Bars, Deformed, 12mm diameter",
+        "unit": "Kilogram",
+        "quantity": 845.23,
+        "tags": ["category:Rebar", "dpwh:902 (1) a2", "diameter:12mm"]
+      },
+      {
+        "id": "boq-5",
+        "itemNumber": "902 (1) a3",
+        "description": "Reinforcing Steel Bars, Deformed, 16mm diameter",
+        "unit": "Kilogram",
+        "quantity": 1234.56,
+        "tags": ["category:Rebar", "dpwh:902 (1) a3", "diameter:16mm"]
+      },
+      {
+        "id": "boq-6",
+        "itemNumber": "902 (1) a4",
+        "description": "Reinforcing Steel Bars, Deformed, 20mm diameter",
+        "unit": "Kilogram",
+        "quantity": 1165.88,
+        "tags": ["category:Rebar", "dpwh:902 (1) a4", "diameter:20mm"]
+      },
+      {
+        "id": "boq-7",
+        "itemNumber": "901 (1)",
+        "description": "Formwork for Beams, Girders, and Slabs",
+        "unit": "Square Meter",
+        "quantity": 156.78,
+        "tags": ["category:Formwork", "dpwh:901 (1)", "type:beam"]
+      },
+      {
+        "id": "boq-8",
+        "itemNumber": "901 (2)",
+        "description": "Formwork for Columns",
+        "unit": "Square Meter",
+        "quantity": 77.78,
+        "tags": ["category:Formwork", "dpwh:901 (2)", "type:column"]
+      }
+    ]
+  }
+}

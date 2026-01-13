@@ -46,7 +46,8 @@ describe('Roof Takeoff Calculations', () => {
       // qty = slopeArea × (1 + lap + waste) = 51.54 × 1.15 = 59.271
       expect(takeoffLine.quantity).toBeCloseTo(59.271, 3);
       expect(takeoffLine.unit).toBe('Square Meter');
-      expect(takeoffLine.trade).toBe('Roofing');
+      expect(takeoffLine.tags).toContain('part:PART E');
+      expect(takeoffLine.tags).toContain('category:Roofing Works');
       expect(takeoffLine.tags).toContain('dpwh:1013');
       expect(takeoffLine.tags).toContain('roofPlane:Main Roof');
     });

@@ -160,7 +160,8 @@ describe('calculateRoofing', () => {
 
       expect(coveringLines.length).toBeGreaterThan(0);
       expect(coveringLines[0].unit).toBe('m²');
-      expect(coveringLines[0].trade).toBe('Roofing');
+      expect(coveringLines[0].tags).toContain('part:PART E');
+      expect(coveringLines[0].tags).toContain('category:Roofing Works');
     });
 
     it('should generate takeoff lines for framing material', async () => {
@@ -405,7 +406,8 @@ describe('calculateRoofing', () => {
       result.takeoffLines.forEach(line => {
         expect(line.id).toBeDefined();
         expect(line.resourceKey).toBeDefined();
-        expect(line.trade).toBe('Roofing');
+        expect(line.tags).toContain('part:PART E');
+        expect(line.tags).toContain('category:Roofing Works');
         expect(line.quantity).toBeGreaterThan(0);
         expect(line.unit).toBeDefined();
         expect(line.formulaText).toBeDefined();

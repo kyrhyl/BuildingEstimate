@@ -65,7 +65,6 @@ export function computeRoofCoverTakeoff(
   return {
     id: uuidv4(),
     sourceElementId: roofPlane.id,
-    trade: 'Roofing',
     resourceKey: `roof-${roofType.id}`,
     quantity,
     unit: roofType.unit,
@@ -73,6 +72,8 @@ export function computeRoofCoverTakeoff(
     inputsSnapshot,
     assumptions,
     tags: [
+      'part:PART E',
+      'category:Roofing Works',
       `roofPlane:${roofPlane.name}`,
       `roofType:${roofType.name}`,
       `level:${roofPlane.levelId}`,

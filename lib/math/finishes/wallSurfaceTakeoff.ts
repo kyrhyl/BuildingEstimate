@@ -101,7 +101,6 @@ export function computeWallSurfaceFinishTakeoff(
   return {
     id: uuidv4(),
     sourceElementId: wallSurface.id,
-    trade: 'Finishes',
     resourceKey: `wallsurface-${finishType.id}`,
     quantity: qty,
     unit: finishType.unit,
@@ -114,12 +113,14 @@ export function computeWallSurfaceFinishTakeoff(
     },
     assumptions,
     tags: [
+      'part:PART E',
+      'category:Finishing Works',
       `wallSurface:${wallSurface.id}`,
       `wallSurfaceName:${wallSurface.name}`,
       `surfaceType:${wallSurface.surfaceType}`,
       `levelRange:${wallSurface.levelStart}-${wallSurface.levelEnd}`,
       `finish:${finishType.finishName}`,
-      `category:${finishType.category}`,
+      `finishCategory:${finishType.category}`,
       `dpwh:${finishType.dpwhItemNumberRaw}`,
     ],
   };

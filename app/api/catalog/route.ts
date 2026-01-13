@@ -12,7 +12,7 @@ const catalog = catalogData.items as DPWHCatalogItem[];
  * 
  * Query params:
  * - query: search term (searches item number and description)
- * - trade: filter by trade (Concrete, Rebar, Formwork, etc.)
+ * - part: filter by part (PART A, PART B, etc.)
  * - category: filter by category
  * - limit: max results (default 1000, max 5000)
  */
@@ -22,9 +22,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   let results = [...catalog];
 
-  // Filter by trade
-  if (params.trade) {
-    results = results.filter(item => item.trade === params.trade);
+  // Filter by part
+  if (params.part) {
+    results = results.filter(item => item.part === params.part);
   }
 
   // Filter by category
@@ -49,6 +49,38 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   return successResponse({
     items: results,
     total: results.length,
+    catalogVersion: catalogData.version,
+  });
+});
+
+/**
+ * POST /api/catalog
+ * Get catalog statistics (categories, trades, total items)
+ * 
+ * Body params:
+ * - part: optional part filter to get categories only for that part
+ */
+export const POST = withErrorHandler(async (request: NextRequest) => {
+  const body = await request.json().catch(() => ({}));
+  const { part } = body;
+
+  let filteredCatalog = catalog;
+
+  // Filter by part if provided
+  if (part && part !== 'all') {
+    filteredCatalog = catalog.filter(item => item.part === part);
+  }
+
+  // Get unique categories, trades, and parts from filtered catalog
+  const categories = [...new Set(filteredCatalog.map(item => item.category))].sort();
+  const trades = [...new Set(filteredCatalog.map(item => item.trade))].sort();
+  const parts = [...new Set(catalog.map(item => item.part))].sort(); // Always return all parts
+
+  return successResponse({
+    categories,
+    trades,
+    parts,
+    totalItems: catalog.length,
     catalogVersion: catalogData.version,
   });
 });

@@ -297,8 +297,8 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                 required
               >
                 <option value="">Select Level</option>
-                {levels.map((l) => (
-                  <option key={l.label} value={l.label}>{l.label}</option>
+                {levels.map((l, idx) => (
+                  <option key={`level-${idx}-${l.label}`} value={l.label}>{l.label}</option>
                 ))}
               </select>
             </div>
@@ -312,8 +312,8 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                   required
                 >
                   <option value="">Select</option>
-                  {gridX.map((g) => (
-                    <option key={g.label} value={g.label}>{g.label}</option>
+                  {gridX.map((g, idx) => (
+                    <option key={`gridx-ystart-${idx}-${g.label}`} value={g.label}>{g.label}</option>
                   ))}
                 </select>
               </div>
@@ -326,8 +326,8 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                   required
                 >
                   <option value="">Select</option>
-                  {gridX.map((g) => (
-                    <option key={g.label} value={g.label}>{g.label}</option>
+                  {gridX.map((g, idx) => (
+                    <option key={`gridx-end-${idx}-${g.label}`} value={g.label}>{g.label}</option>
                   ))}
                 </select>
               </div>
@@ -340,8 +340,8 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                   required
                 >
                   <option value="">Select</option>
-                  {gridY.map((g) => (
-                    <option key={g.label} value={g.label}>{g.label}</option>
+                  {gridY.map((g, idx) => (
+                    <option key={`gridy-start-${idx}-${g.label}`} value={g.label}>{g.label}</option>
                   ))}
                 </select>
               </div>
@@ -354,8 +354,8 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                   required
                 >
                   <option value="">Select</option>
-                  {gridY.map((g) => (
-                    <option key={g.label} value={g.label}>{g.label}</option>
+                  {gridY.map((g, idx) => (
+                    <option key={`gridy-end-${idx}-${g.label}`} value={g.label}>{g.label}</option>
                   ))}
                 </select>
               </div>
@@ -381,8 +381,8 @@ export default function SpacesManager({ projectId, levels, gridX, gridY }: Space
                 onChange={(e) => setSelectedLevelFilter(e.target.value)}
                 className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               >
-                {levels.map((level) => (
-                  <option key={level.label} value={level.label}>
+                {levels.map((level, idx) => (
+                  <option key={`filter-level-${idx}-${level.label}`} value={level.label}>
                     {level.label} ({level.elevation}m)
                   </option>
                 ))}

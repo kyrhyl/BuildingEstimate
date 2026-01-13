@@ -22,8 +22,8 @@ describe('Catalog API', () => {
       expect(data.timestamp).toBeDefined();
     });
 
-    it('should filter by trade', async () => {
-      const request = new NextRequest('http://localhost:3000/api/catalog?trade=Concrete');
+    it('should filter by part', async () => {
+      const request = new NextRequest('http://localhost:3000/api/catalog?part=PART%20D');
       const response = await getCatalog(request);
       const data = await response.json();
 
@@ -31,9 +31,9 @@ describe('Catalog API', () => {
       expect(data.success).toBe(true);
       expect(data.data.items).toBeDefined();
       
-      // All returned items should have trade 'Concrete'
+      // All returned items should have part 'PART D'
       data.data.items.forEach((item: any) => {
-        expect(item.trade).toBe('Concrete');
+        expect(item.part).toBe('PART D');
       });
     });
 
@@ -114,7 +114,7 @@ describe('Catalog API', () => {
     });
 
     it('should combine multiple filters', async () => {
-      const request = new NextRequest('http://localhost:3000/api/catalog?trade=Rebar&query=grade&limit=10');
+      const request = new NextRequest('http://localhost:3000/api/catalog?part=PART%20D&category=reinforcing&limit=10');
       const response = await getCatalog(request);
       const data = await response.json();
 
@@ -123,15 +123,14 @@ describe('Catalog API', () => {
       expect(data.data.items.length).toBeLessThanOrEqual(10);
       
       data.data.items.forEach((item: any) => {
-        expect(item.trade).toBe('Rebar');
-        const hasGrade = item.itemNumber.toLowerCase().includes('grade') || 
-                        item.description.toLowerCase().includes('grade');
-        expect(hasGrade).toBe(true);
+        expect(item.part).toBe('PART D');
+        const hasReinforcing = item.category.toLowerCase().includes('reinforcing');
+        expect(hasReinforcing).toBe(true);
       });
     });
 
-    it('should reject invalid trade value', async () => {
-      const request = new NextRequest('http://localhost:3000/api/catalog?trade=InvalidTrade');
+    it('should reject invalid part value', async () => {
+      const request = new NextRequest('http://localhost:3000/api/catalog?part=InvalidPart');
       const response = await getCatalog(request);
       const data = await response.json();
 

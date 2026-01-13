@@ -17,6 +17,7 @@ interface CatalogItem {
   unit: string;
   category: string;
   trade: string;
+  part: string;
 }
 
 export default function EarthworkItems({ projectId, category, title, description, filterKeywords }: EarthworkItemsProps) {
@@ -57,16 +58,14 @@ export default function EarthworkItems({ projectId, category, title, description
       const res = await fetch('/api/catalog?limit=5000');
       if (res.ok) {
         const response = await res.json();
-        const allResults: CatalogItem[] = response.items || [];
+        const allResults: CatalogItem[] = response.data?.items || response.items || [];
         
-        // Filter to Earthwork trade only (Part C - 800 series)
-        let earthworkResults = allResults.filter(item => 
-          item.trade === 'Earthwork' || item.itemNumber.startsWith('8')
-        );
+        // Filter to Part C items only
+        let partCResults = allResults.filter(item => item.part === 'PART C');
 
         // Further filter by keywords for this category
         if (filterKeywords.length > 0) {
-          earthworkResults = earthworkResults.filter(item =>
+          partCResults = partCResults.filter(item =>
             filterKeywords.some(keyword =>
               item.description?.toLowerCase().includes(keyword.toLowerCase()) ||
               item.category?.toLowerCase().includes(keyword.toLowerCase())
@@ -74,10 +73,25 @@ export default function EarthworkItems({ projectId, category, title, description
           );
         }
 
-        // Sort by item number
-        earthworkResults.sort((a, b) => a.itemNumber.localeCompare(b.itemNumber));
+        // Special filtering for clearing category - exclude tree removal and balling
+        if (category === 'clearing') {
+          partCResults = partCResults.filter(item =>
+            !item.description?.toLowerCase().includes('removal of trees') &&
+            !item.description?.toLowerCase().includes('earth balling')
+          );
+        }
 
-        setCatalogItems(earthworkResults);
+        // Special filtering for removal-structures category - only include 801 series items
+        if (category === 'removal-structures') {
+          partCResults = partCResults.filter(item =>
+            item.itemNumber.startsWith('801')
+          );
+        }
+
+        // Sort by item number
+        partCResults.sort((a, b) => a.itemNumber.localeCompare(b.itemNumber));
+
+        setCatalogItems(partCResults);
       }
     } catch (error) {
       console.error('Error loading catalog:', error);

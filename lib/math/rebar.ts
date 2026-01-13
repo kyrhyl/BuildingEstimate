@@ -27,18 +27,18 @@ export function getRebarGrade(diameter: number): number {
  * Automatically classifies based on Philippine standards
  * @param diameter - Bar diameter in mm
  * @param epoxCoated - Whether the rebar is epoxy-coated (default: false)
- * @returns DPWH item number (e.g., "902 (1) a1" for Grade 40)
+ * @returns DPWH item number (e.g., "902 (1)a1" for Grade 40)
  */
 export function getDPWHRebarItem(diameter: number, epoxCoated: boolean = false): string {
   const grade = getRebarGrade(diameter);
   const prefix = epoxCoated ? '902 (2)' : '902 (1)';
   
   if (grade === 40) {
-    return `${prefix} a1`; // Grade 40
+    return `${prefix}a1`; // Grade 40
   } else if (grade === 60) {
-    return `${prefix} a2`; // Grade 60
+    return `${prefix}a2`; // Grade 60
   } else {
-    return `${prefix} a3`; // Grade 80
+    return `${prefix}a3`; // Grade 80
   }
 }
 
@@ -213,6 +213,33 @@ export function calculateBeamStirrupsWeight(
     barDiameter: stirrupDiameter,
     barLength: perimeterM,
     barCount: stirrupCount,
+    waste,
+  });
+}
+
+/**
+ * Calculate weight for beam web bars (skin reinforcement / side face bars)
+ * Web bars are longitudinal bars placed in the beam web to control cracking
+ * They run along the beam length, similar to main bars
+ * @param webBarDiameter - Web bar diameter in mm
+ * @param webBarCount - Number of web bars (typically 2-4 for deep beams)
+ * @param beamLength - Beam length in meters
+ * @param waste - Waste factor (default: 0.03)
+ */
+export function calculateBeamWebBars(
+  webBarDiameter: number,
+  webBarCount: number,
+  beamLength: number,
+  waste: number = 0.03
+): RebarOutput {
+  // Web bars run full length with laps, similar to main bars
+  const lapLength = calculateLapLength(webBarDiameter);
+  
+  return calculateBarWeight({
+    barDiameter: webBarDiameter,
+    barLength: beamLength,
+    barCount: webBarCount,
+    lapLength,
     waste,
   });
 }

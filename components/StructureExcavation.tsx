@@ -26,6 +26,7 @@ interface CatalogItem {
   unit: string;
   category: string;
   trade: string;
+  part: string;
 }
 
 export default function StructureExcavation({ projectId }: StructureExcavationProps) {
@@ -96,13 +97,13 @@ export default function StructureExcavation({ projectId }: StructureExcavationPr
       const res = await fetch('/api/catalog?limit=5000');
       if (res.ok) {
         const response = await res.json();
-        const allResults: CatalogItem[] = response.items || [];
+        const allResults: CatalogItem[] = response.data?.items || response.items || [];
         
-        // Filter to structure excavation items (Part C - 800 series)
+        // Filter to Part C structure excavation items (item 803 series)
         const structureExcavationItems = allResults.filter(item =>
-          (item.trade === 'Earthwork' || item.itemNumber.startsWith('8')) &&
-          (item.description?.toLowerCase().includes('structure excavation') ||
-           item.description?.toLowerCase().includes('foundation'))
+          item.part === 'PART C' &&
+          item.category === 'Earthworks' &&
+          item.itemNumber.startsWith('803')
         );
         
         structureExcavationItems.sort((a, b) => a.itemNumber.localeCompare(b.itemNumber));

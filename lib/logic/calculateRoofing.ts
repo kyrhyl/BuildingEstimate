@@ -122,7 +122,6 @@ export async function calculateRoofing(
         takeoffLines.push({
           id: uuidv4(),
           sourceElementId: 'truss_system',
-          trade: 'Roofing',
           resourceKey: `truss-${trussDesign.trussParams.type}`,
           quantity: Math.round(totalTrussWeight * 100) / 100,
           unit: 'kg',
@@ -134,6 +133,8 @@ export async function calculateRoofing(
             spacing_mm: trussDesign.trussParams.spacing_mm,
           },
           tags: [
+            'part:PART E',
+            'category:Roofing Works',
             `dpwh:${trussMapping.dpwhItemNumberRaw}`,
             `component:truss`,
             `trussType:${trussDesign.trussParams.type}`,
@@ -188,7 +189,6 @@ export async function calculateRoofing(
         takeoffLines.push({
           id: uuidv4(),
           sourceElementId: 'purlin_system',
-          trade: 'Roofing',
           resourceKey: `purlin-${framingParams.purlinSpec.section}`,
           quantity: Math.round(framingResult.purlins.totalWeight_kg * 100) / 100,
           unit: 'kg',
@@ -200,6 +200,8 @@ export async function calculateRoofing(
             spacing_mm: framingParams.purlinSpacing_mm,
           },
           tags: [
+            'part:PART E',
+            'category:Roofing Works',
             `dpwh:${purlinMapping.dpwhItemNumberRaw}`,
             `component:purlin`,
             `section:${framingParams.purlinSpec.section}`,
@@ -221,7 +223,6 @@ export async function calculateRoofing(
         takeoffLines.push({
           id: uuidv4(),
           sourceElementId: 'bracing_system',
-          trade: 'Roofing',
           resourceKey: `bracing-${framingParams.bracing.type}`,
           quantity: Math.round(framingResult.bracing.totalWeight_kg * 100) / 100,
           unit: 'kg',
@@ -232,6 +233,8 @@ export async function calculateRoofing(
             bayCount: framingResult.bracing.bayCount,
           },
           tags: [
+            'part:PART E',
+            'category:Roofing Works',
             `dpwh:1047 (5) a`, // Bolts and Rods for bracing weight
             `component:bracing`,
             `bracingType:${framingParams.bracing.type}`,
@@ -257,7 +260,6 @@ export async function calculateRoofing(
           takeoffLines.push({
             id: uuidv4(),
             sourceElementId: 'turnbuckle_system',
-            trade: 'Roofing',
             resourceKey: 'turnbuckles',
             quantity: framingResult.bracing.turnbuckleCount,
             unit: 'pcs',
@@ -267,6 +269,8 @@ export async function calculateRoofing(
               multiplier: framingParams.bracing.type === 'X-Brace' ? 2 : 1,
             },
             tags: [
+              'part:PART E',
+              'category:Roofing Works',
               `dpwh:${bracingMapping.dpwhItemNumberRaw}`,
               `component:turnbuckle`,
               `bays:${framingResult.bracing.bayCount}`
@@ -289,7 +293,6 @@ export async function calculateRoofing(
           takeoffLines.push({
             id: uuidv4(),
             sourceElementId: 'ridge_cap',
-            trade: 'Roofing',
             resourceKey: 'ridge-cap',
             quantity: Math.round(framingResult.accessories.ridgeCap_m * 100) / 100,
             unit: 'lm',
@@ -298,6 +301,8 @@ export async function calculateRoofing(
               buildingLength_mm: trussDesign.buildingLength_mm,
             },
             tags: [
+              'part:PART E',
+              'category:Roofing Works',
               `dpwh:${ridgeMapping.dpwhItemNumberRaw}`,
               `component:ridgeCap`
             ],
@@ -321,7 +326,6 @@ export async function calculateRoofing(
           takeoffLines.push({
             id: uuidv4(),
             sourceElementId: 'purlin_bolts',
-            trade: 'Roofing',
             resourceKey: 'purlin-bolts',
             quantity: Math.round(boltsWeight_kg * 100) / 100,
             unit: 'kg',
@@ -331,6 +335,8 @@ export async function calculateRoofing(
               weightPerBolt_kg: ROOFING_CONSTANTS.BOLT_WEIGHT_KG,
             },
             tags: [
+              'part:PART E',
+              'category:Roofing Works',
               `dpwh:${boltsMapping.dpwhItemNumberRaw}`,
               `component:bolts`,
               `count:${framingResult.accessories.boltsAndNuts}`

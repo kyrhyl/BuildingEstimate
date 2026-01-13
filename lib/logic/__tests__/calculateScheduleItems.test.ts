@@ -111,7 +111,8 @@ describe('calculateScheduleItems', () => {
       
       const line = result.takeoffLines[0];
       expect(line.id).toBeDefined();
-      expect(line.trade).toBe('Plumbing');
+      expect(line.tags).toContain('part:PART E');
+      expect(line.tags).toContain('category:Plumbing Works');
       expect(line.quantity).toBe(50);
       expect(line.unit).toBe('m');
       expect(line.formulaText).toContain('50');

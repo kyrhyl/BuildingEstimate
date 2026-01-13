@@ -49,6 +49,11 @@ export interface RebarConfig {
     diameter: number;    // Stirrup diameter in mm
     spacing: number;     // Center-to-center spacing in meters
   };
+  // Web bars (for beams - vertical shear reinforcement)
+  webBars?: {
+    count: number;       // Number of web bars
+    diameter: number;    // Bar diameter in mm
+  };
   // For slabs/foundations: secondary reinforcement (perpendicular to main)
   secondaryBars?: {
     diameter: number;    // Bar diameter in mm
@@ -65,6 +70,7 @@ export interface ElementTemplate {
   properties: Record<string, number>; // e.g., { width: 0.3, height: 0.5 }
   dpwhItemNumber?: string; // DPWH catalog item for BOQ mapping (e.g., "900 (1) a")
   rebarConfig?: RebarConfig;
+  requiresFormwork?: boolean; // Whether formwork is needed (default: true)
 }
 
 
@@ -344,42 +350,16 @@ export interface ScheduleItem {
 // TAKEOFF & ESTIMATION
 // ===================================
 
-export type Trade = 
-  | 'Concrete' 
-  | 'Rebar' 
-  | 'Formwork'
-  | 'Earthwork'
-  | 'Plumbing'
-  | 'Carpentry'
-  | 'Hardware'
-  | 'Doors & Windows'
-  | 'Glass & Glazing'
-  | 'Roofing'
-  | 'Waterproofing'
-  | 'Finishes'
-  | 'Painting'
-  | 'Masonry'
-  | 'Structural Steel'
-  | 'Structural'
-  | 'Foundation'
-  | 'Railing'
-  | 'Cladding'
-  | 'MEPF'
-  | 'Marine Works'
-  | 'General Requirements'
-  | 'Other';
-
 export interface TakeoffLine {
   id: string;
   sourceElementId: string; // references ElementInstance
-  trade: Trade;
   resourceKey: string; // e.g., "concrete-class-a", "rebar-16mm"
   quantity: number;
   unit: string; // e.g., "m³", "kg", "m²"
   formulaText: string; // human-readable formula
   inputsSnapshot: Record<string, number>; // inputs used in calculation
   assumptions: string[]; // e.g., ["Waste: 5%", "Lap: 40Ø"]
-  tags: string[]; // e.g., ["level:2F", "grid:A-B", "type:beam"]
+  tags: string[]; // e.g., ["level:2F", "grid:A-B", "type:beam", "part:PART D", "category:Concrete Works"]
   calculatedAt?: Date;
 }
 
@@ -428,20 +408,21 @@ export interface CalcRun {
 // ===================================
 
 export interface DPWHCatalogItem {
-  itemNumber: string; // e.g., "900 (1)", "902 (1) a1" - unique identifier from DPWH catalog
-  description: string;
-  unit: string; // e.g., "Cubic Meter", "Kilogram", "Square Meter"
-  category: string; // e.g., "Concrete Works", "Reinforcing Steel", "Formwork"
-  trade: Trade; // Concrete, Rebar, or Formwork
-  subCategory?: string;
-  notes?: string;
+  itemNumber: string; // e.g., "900 (1)", "902 (1) a1", "1002 (5)a" - unique identifier from DPWH catalog
+  description: string; // Full description of the pay item
+  unit: string; // e.g., "Cubic Meter", "Kilogram", "Square Meter", "Linear Meter", "Each", "Set", "Piece", "Lump Sum"
+  category: string; // High-level category e.g., "Concrete Works", "Electrical", "Plumbing", "Doors and Windows"
+  trade: string; // Specific trade e.g., "Structural Concrete", "Wiring and Cables", "Water Supply"
+  division: string; // DPWH Division e.g., "DIVISION I - GENERAL", "DIVISION II - BUILDING"
+  part: string; // DPWH Part e.g., "PART C", "PART D", "PART E"
+  itemGroup: string; // Item group e.g., "ITEM 900 � STRUCTURAL CONCRETE", "ITEM 1002 � PLUMBING"
 }
 
 export interface CatalogSearchParams {
   query?: string; // search in item number or description
-  trade?: Trade;
-  category?: string;
-  limit?: number;
+  part?: string; // filter by part (e.g., "PART D", "PART E")
+  category?: string; // filter by category
+  limit?: number; // max results to return
 }
 
 // ===================================

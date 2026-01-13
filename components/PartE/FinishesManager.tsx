@@ -99,7 +99,7 @@ export default function FinishesManager({ projectId, gridX, gridY }: FinishesMan
                                   'concrete topping', 'cement finish', 'terrazzo', 'marble',
                                   'CHB', 'masonry', 'block', 'hollow block', 'concrete hollow'];
       
-      const allItems = data.data || data.items || [];
+      const allItems = data.data?.items || data.items || [];
       const finishingItems = allItems.filter((item: any) => {
         const desc = item.description.toLowerCase();
         // Include items matching finishing keywords OR item 1046.x (masonry)

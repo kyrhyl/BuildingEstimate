@@ -105,7 +105,7 @@ export default function RoofingManager({ projectId }: RoofingManagerProps) {
         if (response1047.ok && response1013.ok) {
           const data1047 = await response1047.json();
           const data1013 = await response1013.json();
-          const combined = [...(data1047.items || []), ...(data1013.items || [])];
+          const combined = [...(data1047.data?.items || data1047.items || []), ...(data1013.data?.items || data1013.items || [])];
           setCatalogItems(combined);
           console.log('Loaded catalog items:', combined.length);
           console.log('Sample items:', combined.slice(0, 5));

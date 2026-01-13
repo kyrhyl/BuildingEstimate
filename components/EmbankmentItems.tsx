@@ -26,6 +26,7 @@ interface CatalogItem {
   unit: string;
   category: string;
   trade: string;
+  part: string;
 }
 
 export default function EmbankmentItems({ projectId }: EmbankmentItemsProps) {
@@ -96,14 +97,13 @@ export default function EmbankmentItems({ projectId }: EmbankmentItemsProps) {
       const res = await fetch('/api/catalog?limit=5000');
       if (res.ok) {
         const response = await res.json();
-        const allResults: CatalogItem[] = response.items || [];
+        const allResults: CatalogItem[] = response.data?.items || response.items || [];
         
-        // Filter to embankment items (Part C - 800 series)
+        // Filter to Part C embankment items (item 804 series)
         const embankmentItems = allResults.filter(item =>
-          (item.trade === 'Earthwork' || item.itemNumber.startsWith('8')) &&
-          (item.description?.toLowerCase().includes('embankment') ||
-           item.description?.toLowerCase().includes('fill') ||
-           item.description?.toLowerCase().includes('borrow'))
+          item.part === 'PART C' &&
+          item.category === 'Earthworks' &&
+          item.itemNumber.startsWith('804')
         );
         
         embankmentItems.sort((a, b) => a.itemNumber.localeCompare(b.itemNumber));

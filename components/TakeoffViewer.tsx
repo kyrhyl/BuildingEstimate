@@ -107,7 +107,8 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
         // Get DPWH item number from tags or field
         const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
         const dpwhItemNumber = dpwhTag ? dpwhTag.replace('dpwh:', '') : '';
-        const category = line.trade;
+        const categoryTag = line.tags.find(tag => tag.startsWith('category:'));
+        const category = categoryTag ? categoryTag.replace('category:', '') : '';
         
         const classification = classifyDPWHItem(dpwhItemNumber, category);
         return classification.part.startsWith(filterType);
@@ -152,22 +153,24 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
       doc.text('SUMMARY', 14, yPos);
       yPos += 10;
 
-      // Group quantities by trade and unit
-      const tradeSummary: Record<string, { qty: number; unit: string; count: number }> = {};
+      // Group quantities by category and unit
+      const categorySummary: Record<string, { qty: number; unit: string; count: number }> = {};
       takeoffLines.forEach(line => {
-        const key = `${line.trade}_${line.unit}`;
-        if (!tradeSummary[key]) {
-          tradeSummary[key] = { qty: 0, unit: line.unit, count: 0 };
+        const categoryTag = line.tags.find(tag => tag.startsWith('category:'));
+        const category = categoryTag ? categoryTag.replace('category:', '') : 'Uncategorized';
+        const key = `${category}_${line.unit}`;
+        if (!categorySummary[key]) {
+          categorySummary[key] = { qty: 0, unit: line.unit, count: 0 };
         }
-        tradeSummary[key].qty += line.quantity;
-        tradeSummary[key].count += 1;
+        categorySummary[key].qty += line.quantity;
+        categorySummary[key].count += 1;
       });
 
-      const summaryBody = Object.entries(tradeSummary).map(([key, data]) => {
-        const trade = key.split('_')[0];
+      const summaryBody = Object.entries(categorySummary).map(([key, data]) => {
+        const category = key.split('_')[0];
         const decimals = data.unit === 'kg' ? 2 : 3;
         return [
-          trade,
+          category,
           data.qty.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }),
           data.unit,
           '-',
@@ -177,7 +180,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
 
       autoTable(doc, {
         startY: yPos,
-        head: [['Trade', 'Quantity', 'Unit', 'Elements', 'Lines']],
+        head: [['Category', 'Quantity', 'Unit', 'Elements', 'Lines']],
         body: summaryBody,
         theme: 'grid',
         headStyles: { fillColor: [59, 130, 246], fontStyle: 'bold' },
@@ -195,8 +198,9 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
       const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
       const dpwhItemNumber = dpwhTag ? dpwhTag.replace('dpwh:', '') : '';
       
-      // Get category from trade
-      const category = line.trade;
+      // Get category from tags
+      const categoryTag = line.tags.find(tag => tag.startsWith('category:'));
+      const category = categoryTag ? categoryTag.replace('category:', '') : '';
       
       // Classify the item
       const classification = classifyDPWHItem(dpwhItemNumber, category);
@@ -252,10 +256,11 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
         yPos += 6;
 
         const tableData = subcategoryLines.map(line => {
+          const categoryTag = line.tags.find(tag => tag.startsWith('category:'));
+          const category = categoryTag ? categoryTag.replace('category:', '') : '';
           const typeTag = line.tags.find(tag => tag.startsWith('type:'))?.replace('type:', '') 
             || line.tags.find(tag => tag.startsWith('component:'))?.replace('component:', '')
-            || line.tags.find(tag => tag.startsWith('category:'))?.replace('category:', '')
-            || line.trade.toLowerCase();
+            || category.toLowerCase();
           const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') 
             || line.tags.find(tag => tag.startsWith('finish:'))?.replace('finish:', '')
             || line.tags.find(tag => tag.startsWith('section:'))?.replace('section:', '')
@@ -546,7 +551,12 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item No.</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Template</th>
+                  {(filterType === 'rebar' || filterType === 'all') && (
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bar Type</th>
+                  )}
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grid</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
                   {summarizedView && (
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Count</th>
                   )}
@@ -567,8 +577,9 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                   filteredLines.forEach(line => {
                     const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
                     const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : '';
-                    const tradeCategory = line.trade;
-                    const classification = classifyDPWHItem(dpwhItemNo, tradeCategory);
+                    const categoryTag = line.tags.find(tag => tag.startsWith('category:'));
+                    const category = categoryTag ? categoryTag.replace('category:', '') : '';
+                    const classification = classifyDPWHItem(dpwhItemNo, category);
                     const part = classification.part;
                     const subcategory = classification.subcategory;
                     
@@ -604,7 +615,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                           setExpandedParts(newExpanded);
                         }}
                       >
-                        <td colSpan={summarizedView ? 7 : 6} className="px-4 py-3 text-sm font-bold text-gray-900">
+                        <td colSpan={(filterType === 'rebar' || filterType === 'all') ? 9 : 8} className="px-4 py-3 text-sm font-bold text-gray-900">
                           <div className="flex items-center gap-2">
                             <span>{isPartExpanded ? '▼' : '▶'}</span>
                             <span>{part}</span>
@@ -624,7 +635,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                         // Subcategory header row
                         rows.push(
                           <tr key={`subcat-${part}-${subcategory}`} className="bg-blue-50">
-                            <td colSpan={summarizedView ? 7 : 6} className="px-8 py-2 text-sm font-semibold text-gray-800">
+                            <td colSpan={summarizedView ? ((filterType === 'rebar' || filterType === 'all') ? 10 : 9) : ((filterType === 'rebar' || filterType === 'all') ? 9 : 8)} className="px-8 py-2 text-sm font-semibold text-gray-800">
                               {subcategory} ({subcategoryLines.length} items)
                             </td>
                           </tr>
@@ -664,14 +675,28 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
                           const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : '-';
                           
                           const templateTag = line.tags.find(tag => tag.startsWith('template:'))?.replace('template:', '') || 'N/A';
+                          const gridTag = line.tags.find(tag => tag.startsWith('grid:'))?.replace('grid:', '') || '-';
                           const levelTag = line.tags.find(tag => tag.startsWith('level:'))?.replace('level:', '') 
                             || line.tags.find(tag => tag.startsWith('space:'))?.replace('space:', '')
                             || 'N/A';
+                          
+                          // Extract rebar type from tags
+                          const rebarTypeTag = line.tags.find(tag => tag.startsWith('rebar:'))?.replace('rebar:', '');
+                          const barType = rebarTypeTag 
+                            ? rebarTypeTag.charAt(0).toUpperCase() + rebarTypeTag.slice(1).replace('_', ' ')
+                            : null;
                           
                           rows.push(
                             <tr key={`line-${line.id}`} className="hover:bg-blue-50">
                               <td className="px-4 py-2 text-xs font-mono text-gray-700">{dpwhItemNo}</td>
                               <td className="px-4 py-2 text-sm text-gray-900">{line.resourceKey || templateTag}</td>
+                              <td className="px-4 py-2 text-sm text-gray-700">{templateTag}</td>
+                              {(filterType === 'rebar' || filterType === 'all') && (
+                                <td className="px-4 py-2 text-xs font-semibold text-orange-700">
+                                  {barType || '-'}
+                                </td>
+                              )}
+                              <td className="px-4 py-2 text-xs font-mono text-gray-600">{gridTag}</td>
                               <td className="px-4 py-2 text-sm text-gray-600">{levelTag}</td>
                               {summarizedView && (
                                 <td className="px-4 py-2 text-sm text-center font-semibold text-gray-700">
@@ -705,7 +730,7 @@ export default function TakeoffViewer({ projectId, onTakeoffGenerated }: Takeoff
               </tbody>
               <tfoot className="bg-gray-50 font-semibold">
                 <tr>
-                  <td colSpan={summarizedView ? 4 : 3} className="px-4 py-3 text-sm text-gray-700">
+                  <td colSpan={summarizedView ? ((filterType === 'rebar' || filterType === 'all') ? 7 : 6) : ((filterType === 'rebar' || filterType === 'all') ? 6 : 5)} className="px-4 py-3 text-sm text-gray-700">
                     Subtotal ({filteredLines.length} items)
                   </td>
                   <td className="px-4 py-3 text-sm text-right text-gray-900">

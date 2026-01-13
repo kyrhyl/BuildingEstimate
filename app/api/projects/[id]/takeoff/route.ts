@@ -6,7 +6,8 @@ import type { TakeoffLine, ElementInstance, ElementTemplate, GridLine, Level } f
 import { calculateBeamConcrete, calculateSlabConcrete, calculateColumnConcrete, calculateFootingConcrete, roundVolume } from '@/lib/math/concrete';
 import { 
   calculateBeamMainBars, 
-  calculateBeamStirrupsWeight, 
+  calculateBeamStirrupsWeight,
+  calculateBeamWebBars,
   calculateSlabMainBars,
   calculateColumnMainBars,
   calculateColumnTiesWeight,
@@ -59,6 +60,14 @@ export async function POST(
 
     const takeoffLines: TakeoffLine[] = [];
     const errors: string[] = [];
+
+    // Helper: Safely get property value (handles both Map and plain object)
+    const getProperty = (properties: Record<string, number> | Map<string, number>, key: string): number | undefined => {
+      if (properties instanceof Map) {
+        return properties.get(key);
+      }
+      return properties[key];
+    };
 
     // Helper: Get grid offset by label
     const getGridOffset = (label: string, axis: 'X' | 'Y'): number | null => {
@@ -131,12 +140,10 @@ export async function POST(
           }
 
           // Get beam dimensions from template
-          const width = typeof template.properties.width === 'number' ? template.properties.width : 
-                       (template.properties as any).get?.('width') || 0;
-          const height = typeof template.properties.height === 'number' ? template.properties.height : 
-                        (template.properties as any).get?.('height') || 0;
+          const width = getProperty(template.properties, 'width');
+          const height = getProperty(template.properties, 'height');
 
-          if (width <= 0 || height <= 0) {
+          if (!width || width <= 0 || !height || height <= 0) {
             errors.push(`Beam template '${template.name}' has invalid dimensions (width: ${width}, height: ${height})`);
             continue;
           }
@@ -148,10 +155,12 @@ export async function POST(
             waste: settings.waste.concrete,
           });
 
+          const concreteDpwhItem = template.dpwhItemNumber || '900 (1) a';
+          const gridLocation = instance.placement.gridRef?.join(' @ ') || '';
+          
           const takeoffLine: TakeoffLine = {
             id: `tof_${instance.id}_concrete`,
             sourceElementId: instance.id,
-            trade: 'Concrete',
             resourceKey: 'concrete-class-a',
             quantity: roundVolume(result.volumeWithWaste, settings.rounding.concrete),
             unit: 'm³',
@@ -159,9 +168,13 @@ export async function POST(
             inputsSnapshot: result.inputs,
             assumptions: [`Waste: ${(settings.waste.concrete * 100).toFixed(0)}%`],
             tags: [
+              `dpwh:${concreteDpwhItem}`,
+              `part:PART D`,
+              `category:Concrete Works`,
               `type:beam`,
               `template:${template.name}`,
               `level:${level.label}`,
+              ...(gridLocation ? [`grid:${gridLocation}`] : []),
               ...(instance.tags || []),
             ],
             calculatedAt: new Date(),
@@ -186,7 +199,6 @@ export async function POST(
               takeoffLines.push({
                 id: `tof_${instance.id}_rebar_main`,
                 sourceElementId: instance.id,
-                trade: 'Rebar',
                 resourceKey: `rebar-${template.rebarConfig.mainBars.diameter}mm`,
                 quantity: Math.round(mainBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
                 unit: 'kg',
@@ -194,6 +206,8 @@ export async function POST(
                 inputsSnapshot: mainBarsResult.inputs,
                 assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
                 tags: [
+                  `part:PART D`,
+                  `category:Reinforcing Steel`,
                   `type:beam`,
                   `rebar:main`,
                   `template:${template.name}`,
@@ -221,7 +235,6 @@ export async function POST(
               takeoffLines.push({
                 id: `tof_${instance.id}_rebar_stirrups`,
                 sourceElementId: instance.id,
-                trade: 'Rebar',
                 resourceKey: `rebar-${template.rebarConfig.stirrups.diameter}mm`,
                 quantity: Math.round(stirrupsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
                 unit: 'kg',
@@ -229,6 +242,8 @@ export async function POST(
                 inputsSnapshot: stirrupsResult.inputs,
                 assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
                 tags: [
+                  `part:PART D`,
+                  `category:Reinforcing Steel`,
                   `type:beam`,
                   `rebar:stirrups`,
                   `template:${template.name}`,
@@ -239,29 +254,69 @@ export async function POST(
                 calculatedAt: new Date(),
               });
             }
+
+            // Web bars (skin reinforcement / side face bars)
+            if (template.rebarConfig.webBars?.count && template.rebarConfig.webBars.diameter) {
+              const webBarsResult = calculateBeamWebBars(
+                template.rebarConfig.webBars.diameter,
+                template.rebarConfig.webBars.count,
+                length,
+                settings.waste.rebar
+              );
+
+              const dpwhRebarItem = getDPWHRebarItem(template.rebarConfig.webBars.diameter);
+
+              takeoffLines.push({
+                id: `tof_${instance.id}_rebar_web`,
+                sourceElementId: instance.id,
+                resourceKey: `rebar-${template.rebarConfig.webBars.diameter}mm`,
+                quantity: Math.round(webBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
+                unit: 'kg',
+                formulaText: webBarsResult.formulaText,
+                inputsSnapshot: webBarsResult.inputs,
+                assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
+                tags: [
+                  `part:PART D`,
+                  `category:Reinforcing Steel`,
+                  `type:beam`,
+                  `rebar:web`,
+                  `template:${template.name}`,
+                  `level:${level.label}`,
+                  `dpwh:${dpwhRebarItem}`,
+                  ...(instance.tags || []),
+                ],
+                calculatedAt: new Date(),
+              });
+            }
           }
 
-          // Formwork calculation for beam
-          const formworkResult = calculateBeamFormwork(width, height, length);
-          
-          takeoffLines.push({
-            id: `tof_${instance.id}_formwork`,
-            sourceElementId: instance.id,
-            trade: 'Formwork',
-            resourceKey: 'formwork-beam',
-            quantity: roundArea(formworkResult.area, settings.rounding.formwork),
-            unit: 'm²',
-            formulaText: formworkResult.formulaText,
-            inputsSnapshot: formworkResult.inputs,
-            assumptions: ['Contact area: bottom + 2 sides'],
-            tags: [
-              `type:beam`,
-              `template:${template.name}`,
-              `level:${level.label}`,
-              ...(instance.tags || []),
-            ],
-            calculatedAt: new Date(),
-          });
+          // Formwork calculation for beam (only if required)
+          if (template.requiresFormwork !== false) {
+            const formworkResult = calculateBeamFormwork(width, height, length);
+            
+            takeoffLines.push({
+              id: `tof_${instance.id}_formwork`,
+              sourceElementId: instance.id,
+              resourceKey: 'formwork-beam',
+              quantity: roundArea(formworkResult.area, settings.rounding.formwork),
+              unit: 'm²',
+              formulaText: formworkResult.formulaText,
+              inputsSnapshot: formworkResult.inputs,
+              assumptions: ['Contact area: bottom + 2 sides'],
+              tags: [
+                `dpwh:903 (2)`,
+                `part:PART D`,
+                `category:Formwork and Falseworks`,
+                `type:beam`,
+                `component:soffit`,
+                `template:${template.name}`,
+                `level:${level.label}`,
+                ...(gridLocation ? [`grid:${gridLocation}`] : []),
+                ...(instance.tags || []),
+              ],
+              calculatedAt: new Date(),
+            });
+          }
 
         } else if (template.type === 'slab' && instance.placement.gridRef && instance.placement.gridRef.length >= 2) {
           // Slab calculation
@@ -284,10 +339,9 @@ export async function POST(
           const area = width * height;
 
           // Get slab thickness from template
-          const thickness = typeof template.properties.thickness === 'number' ? template.properties.thickness : 
-                           (template.properties as any).get?.('thickness') || 0;
+          const thickness = getProperty(template.properties, 'thickness');
 
-          if (thickness <= 0) {
+          if (!thickness || thickness <= 0) {
             errors.push(`Slab template '${template.name}' has invalid thickness (${thickness})`);
             continue;
           }
@@ -298,10 +352,12 @@ export async function POST(
             waste: settings.waste.concrete,
           });
 
+          const concreteDpwhItem = template.dpwhItemNumber || '900 (1) a';
+          const gridLocation = instance.placement.gridRef?.join(' @ ') || '';
+
           const takeoffLine: TakeoffLine = {
             id: `tof_${instance.id}_concrete`,
             sourceElementId: instance.id,
-            trade: 'Concrete',
             resourceKey: 'concrete-class-a',
             quantity: roundVolume(result.volumeWithWaste, settings.rounding.concrete),
             unit: 'm³',
@@ -309,9 +365,13 @@ export async function POST(
             inputsSnapshot: result.inputs,
             assumptions: [`Waste: ${(settings.waste.concrete * 100).toFixed(0)}%`],
             tags: [
+              `dpwh:${concreteDpwhItem}`,
+              `part:PART D`,
+              `category:Concrete Works`,
               `type:slab`,
               `template:${template.name}`,
               `level:${level.label}`,
+              ...(gridLocation ? [`grid:${gridLocation}`] : []),
               ...(instance.tags || []),
             ],
             calculatedAt: new Date(),
@@ -345,7 +405,6 @@ export async function POST(
               takeoffLines.push({
                 id: `tof_${instance.id}_rebar_main`,
                 sourceElementId: instance.id,
-                trade: 'Rebar',
                 resourceKey: `rebar-${template.rebarConfig.mainBars.diameter}mm`,
                 quantity: Math.round(mainBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
                 unit: 'kg',
@@ -353,6 +412,8 @@ export async function POST(
                 inputsSnapshot: mainBarsResult.inputs,
                 assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
                 tags: [
+                  `part:PART D`,
+                  `category:Reinforcing Steel`,
                   `type:slab`,
                   `rebar:main`,
                   `template:${template.name}`,
@@ -379,7 +440,6 @@ export async function POST(
               takeoffLines.push({
                 id: `tof_${instance.id}_rebar_secondary`,
                 sourceElementId: instance.id,
-                trade: 'Rebar',
                 resourceKey: `rebar-${template.rebarConfig.secondaryBars.diameter}mm`,
                 quantity: Math.round(secondaryBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
                 unit: 'kg',
@@ -387,6 +447,8 @@ export async function POST(
                 inputsSnapshot: secondaryBarsResult.inputs,
                 assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
                 tags: [
+                  `part:PART D`,
+                  `category:Reinforcing Steel`,
                   `type:slab`,
                   `rebar:secondary`,
                   `template:${template.name}`,
@@ -399,23 +461,28 @@ export async function POST(
             }
           }
 
-          // Formwork calculation for slab (soffit)
-          const formworkResult = calculateSlabFormwork(area);
-          
-          takeoffLines.push({
-            id: `tof_${instance.id}_formwork`,
-            sourceElementId: instance.id,
-            trade: 'Formwork',
-            resourceKey: 'formwork-slab',
-            quantity: roundArea(formworkResult.area, settings.rounding.formwork),
-            unit: 'm²',
-            formulaText: formworkResult.formulaText,
-            inputsSnapshot: formworkResult.inputs,
-            assumptions: ['Soffit formwork (bottom surface)'],
-            tags: [
+          // Formwork calculation for slab (soffit) - only if required
+          if (template.requiresFormwork !== false) {
+            const formworkResult = calculateSlabFormwork(area);
+            
+            takeoffLines.push({
+              id: `tof_${instance.id}_formwork`,
+              sourceElementId: instance.id,
+              resourceKey: 'formwork-slab',
+              quantity: roundArea(formworkResult.area, settings.rounding.formwork),
+              unit: 'm²',
+              formulaText: formworkResult.formulaText,
+              inputsSnapshot: formworkResult.inputs,
+              assumptions: ['Soffit formwork (bottom surface)'],
+              tags: [
+              `dpwh:903 (2)`,
+              `part:PART D`,
+              `category:Formwork and Falseworks`,
               `type:slab`,
+              `component:soffit`,
               `template:${template.name}`,
               `level:${level.label}`,
+              ...(gridLocation ? [`grid:${gridLocation}`] : []),
               ...(instance.tags || []),
             ],
             calculatedAt: new Date(),
@@ -454,15 +521,12 @@ export async function POST(
             continue;
           }
 
-          const isCircular = template.properties.diameter !== undefined;
+          const isCircular = getProperty(template.properties, 'diameter') !== undefined;
           
           // Get column dimensions from template
-          const diameter = typeof template.properties.diameter === 'number' ? template.properties.diameter : 
-                          (template.properties as any).get?.('diameter');
-          const width = typeof template.properties.width === 'number' ? template.properties.width : 
-                       (template.properties as any).get?.('width');
-          const height = typeof template.properties.height === 'number' ? template.properties.height : 
-                        (template.properties as any).get?.('height');
+          const diameter = getProperty(template.properties, 'diameter');
+          const width = getProperty(template.properties, 'width');
+          const height = getProperty(template.properties, 'height');
 
           if (isCircular && (!diameter || diameter <= 0)) {
             errors.push(`Circular column template '${template.name}' has invalid diameter (${diameter})`);
@@ -483,10 +547,12 @@ export async function POST(
             waste: settings.waste.concrete,
           });
 
+          const concreteDpwhItem = template.dpwhItemNumber || '900 (1) a';
+          const gridLocation = instance.placement.gridRef?.join(' @ ') || '';
+
           const takeoffLine: TakeoffLine = {
             id: `tof_${instance.id}_concrete`,
             sourceElementId: instance.id,
-            trade: 'Concrete',
             resourceKey: 'concrete-class-a',
             quantity: roundVolume(result.volumeWithWaste, settings.rounding.concrete),
             unit: 'm³',
@@ -497,9 +563,13 @@ export async function POST(
               `Height: ${level.label} to ${endLevel.label} (${columnHeight.toFixed(2)}m)`,
             ],
             tags: [
+              `dpwh:${concreteDpwhItem}`,
+              `part:PART D`,
+              `category:Concrete Works`,
               `type:column`,
               `template:${template.name}`,
               `level:${level.label}`,
+              ...(gridLocation ? [`grid:${gridLocation}`] : []),
               ...(instance.tags || []),
             ],
             calculatedAt: new Date(),
@@ -524,7 +594,6 @@ export async function POST(
               takeoffLines.push({
                 id: `tof_${instance.id}_rebar_main`,
                 sourceElementId: instance.id,
-                trade: 'Rebar',
                 resourceKey: `rebar-${template.rebarConfig.mainBars.diameter}mm`,
                 quantity: Math.round(mainBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
                 unit: 'kg',
@@ -532,6 +601,8 @@ export async function POST(
                 inputsSnapshot: mainBarsResult.inputs,
                 assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
                 tags: [
+                  `part:PART D`,
+                  `category:Reinforcing Steel`,
                   `type:column`,
                   `rebar:main`,
                   `template:${template.name}`,
@@ -559,7 +630,6 @@ export async function POST(
               takeoffLines.push({
                 id: `tof_${instance.id}_rebar_ties`,
                 sourceElementId: instance.id,
-                trade: 'Rebar',
                 resourceKey: `rebar-${template.rebarConfig.stirrups.diameter}mm`,
                 quantity: Math.round(tiesResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
                 unit: 'kg',
@@ -567,6 +637,8 @@ export async function POST(
                 inputsSnapshot: tiesResult.inputs,
                 assumptions: [`Waste: ${(settings.waste.rebar * 100).toFixed(0)}%`, `DPWH Item: ${dpwhRebarItem}`],
                 tags: [
+                  `part:PART D`,
+                  `category:Reinforcing Steel`,
                   `type:column`,
                   `rebar:ties`,
                   `template:${template.name}`,
@@ -579,21 +651,21 @@ export async function POST(
             }
           }
 
-          // Formwork calculation for column
-          let formworkResult;
-          if (diameter) {
-            // Circular column
-            formworkResult = calculateCircularColumnFormwork(diameter, columnHeight);
-          } else if (width && height) {
-            // Rectangular column
-            formworkResult = calculateRectangularColumnFormwork(width, height, columnHeight);
-          }
+          // Formwork calculation for column - only if required
+          if (template.requiresFormwork !== false) {
+            let formworkResult;
+            if (diameter) {
+              // Circular column
+              formworkResult = calculateCircularColumnFormwork(diameter, columnHeight);
+            } else if (width && height) {
+              // Rectangular column
+              formworkResult = calculateRectangularColumnFormwork(width, height, columnHeight);
+            }
 
-          if (formworkResult) {
-            takeoffLines.push({
+            if (formworkResult) {
+              takeoffLines.push({
               id: `tof_${instance.id}_formwork`,
               sourceElementId: instance.id,
-              trade: 'Formwork',
               resourceKey: 'formwork-column',
               quantity: roundArea(formworkResult.area, settings.rounding.formwork),
               unit: 'm²',
@@ -601,18 +673,23 @@ export async function POST(
               inputsSnapshot: formworkResult.inputs,
               assumptions: [diameter ? 'Cylindrical surface' : 'All 4 sides'],
               tags: [
+                `dpwh:903 (2)`,
+                `part:PART D`,
+                `category:Formwork and Falseworks`,
                 `type:column`,
                 `template:${template.name}`,
                 `level:${level.label}`,
+                ...(gridLocation ? [`grid:${gridLocation}`] : []),
                 ...(instance.tags || []),
               ],
               calculatedAt: new Date(),
             });
           }
+        }
 
         } else if (template.type === 'foundation') {
           // Foundation calculation
-          const isMat = template.properties.thickness !== undefined;
+          const isMat = getProperty(template.properties, 'thickness') !== undefined;
 
           if (isMat) {
             // Mat foundation (like a slab)
@@ -639,10 +716,9 @@ export async function POST(
             const height = Math.abs(y2 - y1);
             const area = width * height;
 
-            const thickness = typeof template.properties.thickness === 'number' ? template.properties.thickness : 
-                             (template.properties as any).get?.('thickness') || 0;
+            const thickness = getProperty(template.properties, 'thickness');
 
-            if (thickness <= 0) {
+            if (!thickness || thickness <= 0) {
               errors.push(`Mat foundation template '${template.name}' has invalid thickness (${thickness})`);
               continue;
             }
@@ -653,10 +729,12 @@ export async function POST(
               waste: settings.waste.concrete,
             });
 
+            const concreteDpwhItem = template.dpwhItemNumber || '900 (1) a';
+            const gridLocation = instance.placement.gridRef?.join(' @ ') || '';
+
             const takeoffLine: TakeoffLine = {
               id: `tof_${instance.id}_concrete`,
               sourceElementId: instance.id,
-              trade: 'Concrete',
               resourceKey: 'concrete-class-a',
               quantity: roundVolume(result.volumeWithWaste, settings.rounding.concrete),
               unit: 'm³',
@@ -664,10 +742,14 @@ export async function POST(
               inputsSnapshot: result.inputs,
               assumptions: [`Waste: ${(settings.waste.concrete * 100).toFixed(0)}%`, `Type: Mat Foundation`],
               tags: [
+                `dpwh:${concreteDpwhItem}`,
+                `part:PART D`,
+                `category:Concrete Works`,
                 `type:foundation`,
                 `subtype:mat`,
                 `template:${template.name}`,
                 `level:${level.label}`,
+                ...(gridLocation ? [`grid:${gridLocation}`] : []),
                 ...(instance.tags || []),
               ],
               calculatedAt: new Date(),
@@ -698,7 +780,6 @@ export async function POST(
                 const mainTakeoffLine: TakeoffLine = {
                   id: `tof_${instance.id}_rebar_main`,
                   sourceElementId: instance.id,
-                  trade: 'Rebar',
                   resourceKey: `rebar-${diameter}mm`,
                   quantity: Math.round(mainBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
                   unit: 'kg',
@@ -711,6 +792,8 @@ export async function POST(
                     `Grade: ${getRebarGrade(diameter)}`,
                   ],
                   tags: [
+                    `part:PART D`,
+                    `category:Reinforcing Steel`,
                     `type:foundation`,
                     `subtype:mat`,
                     `template:${template.name}`,
@@ -743,7 +826,6 @@ export async function POST(
                 const secondaryTakeoffLine: TakeoffLine = {
                   id: `tof_${instance.id}_rebar_secondary`,
                   sourceElementId: instance.id,
-                  trade: 'Rebar',
                   resourceKey: `rebar-${diameter}mm`,
                   quantity: Math.round(secondaryBarsResult.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
                   unit: 'kg',
@@ -756,6 +838,8 @@ export async function POST(
                     `Grade: ${getRebarGrade(diameter)}`,
                   ],
                   tags: [
+                    `part:PART D`,
+                    `category:Reinforcing Steel`,
                     `type:foundation`,
                     `subtype:mat`,
                     `template:${template.name}`,
@@ -770,13 +854,13 @@ export async function POST(
                 takeoffLines.push(secondaryTakeoffLine);
               }
 
-              // Mat formwork (perimeter edges only)
+            // Mat formwork (perimeter edges only) - only if required
+            if (template.requiresFormwork !== false) {
               const matFormworkResult = calculateMatFormwork(width, height, thickness);
               
               const matFormworkLine: TakeoffLine = {
                 id: `tof_${instance.id}_formwork`,
                 sourceElementId: instance.id,
-                trade: 'Formwork',
                 resourceKey: 'formwork-mat',
                 quantity: roundArea(matFormworkResult.area, settings.rounding.formwork || 2),
                 unit: 'm²',
@@ -786,10 +870,14 @@ export async function POST(
                   'Perimeter edge formwork only (bottom in contact with soil)',
                 ],
                 tags: [
+                  `dpwh:903 (2)`,
+                  `part:PART D`,
+                  `category:Formwork and Falseworks`,
                   `type:foundation`,
                   `subtype:mat`,
                   `template:${template.name}`,
                   `level:${level.label}`,
+                  ...(gridLocation ? [`grid:${gridLocation}`] : []),
                   ...(instance.tags || []),
                 ],
                 calculatedAt: new Date(),
@@ -797,17 +885,12 @@ export async function POST(
 
               takeoffLines.push(matFormworkLine);
             }
-
-          } else {
             // Footing (box)
-            const length = typeof template.properties.length === 'number' ? template.properties.length : 
-                          (template.properties as any).get?.('length') || 0;
-            const width = typeof template.properties.width === 'number' ? template.properties.width : 
-                         (template.properties as any).get?.('width') || 0;
-            const depth = typeof template.properties.depth === 'number' ? template.properties.depth : 
-                         (template.properties as any).get?.('depth') || 0;
+            const length = getProperty(template.properties, 'length');
+            const width = getProperty(template.properties, 'width');
+            const depth = getProperty(template.properties, 'depth');
 
-            if (length <= 0 || width <= 0 || depth <= 0) {
+            if (!length || length <= 0 || !width || width <= 0 || !depth || depth <= 0) {
               errors.push(`Footing template '${template.name}' has invalid dimensions (length: ${length}, width: ${width}, depth: ${depth})`);
               continue;
             }
@@ -819,10 +902,12 @@ export async function POST(
               waste: settings.waste.concrete,
             });
 
+            const concreteDpwhItem = template.dpwhItemNumber || '900 (1) a';
+            const gridLocation = instance.placement.gridRef?.join(' @ ') || '';
+
             const takeoffLine: TakeoffLine = {
               id: `tof_${instance.id}_concrete`,
               sourceElementId: instance.id,
-              trade: 'Concrete',
               resourceKey: 'concrete-class-a',
               quantity: roundVolume(result.volumeWithWaste, settings.rounding.concrete),
               unit: 'm³',
@@ -830,10 +915,14 @@ export async function POST(
               inputsSnapshot: result.inputs,
               assumptions: [`Waste: ${(settings.waste.concrete * 100).toFixed(0)}%`, `Type: Isolated Footing`],
               tags: [
+                `dpwh:${concreteDpwhItem}`,
+                `part:PART D`,
+                `category:Concrete Works`,
                 `type:foundation`,
                 `subtype:footing`,
                 `template:${template.name}`,
                 `level:${level.label}`,
+                ...(gridLocation ? [`grid:${gridLocation}`] : []),
                 ...(instance.tags || []),
               ],
               calculatedAt: new Date(),
@@ -864,7 +953,6 @@ export async function POST(
                 const mainTakeoffLine: TakeoffLine = {
                   id: `tof_${instance.id}_rebar_main`,
                   sourceElementId: instance.id,
-                  trade: 'Rebar',
                   resourceKey: `rebar-${diameter}mm`,
                   quantity: Math.round(mainBarsLength.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
                   unit: 'kg',
@@ -877,6 +965,8 @@ export async function POST(
                     `Grade: ${getRebarGrade(diameter)}`,
                   ],
                   tags: [
+                    `part:PART D`,
+                    `category:Reinforcing Steel`,
                     `type:foundation`,
                     `subtype:footing`,
                     `template:${template.name}`,
@@ -909,7 +999,6 @@ export async function POST(
                 const secondaryTakeoffLine: TakeoffLine = {
                   id: `tof_${instance.id}_rebar_secondary`,
                   sourceElementId: instance.id,
-                  trade: 'Rebar',
                   resourceKey: `rebar-${diameter}mm`,
                   quantity: Math.round(secondaryBarsWidth.weight * Math.pow(10, settings.rounding.rebar)) / Math.pow(10, settings.rounding.rebar),
                   unit: 'kg',
@@ -922,6 +1011,8 @@ export async function POST(
                     `Grade: ${getRebarGrade(diameter)}`,
                   ],
                   tags: [
+                    `part:PART D`,
+                    `category:Reinforcing Steel`,
                     `type:foundation`,
                     `subtype:footing`,
                     `template:${template.name}`,
@@ -936,32 +1027,37 @@ export async function POST(
                 takeoffLines.push(secondaryTakeoffLine);
               }
 
-              // Footing formwork (all 4 sides)
-              const footingFormworkResult = calculateFootingFormwork(length, width, depth);
-              
-              const footingFormworkLine: TakeoffLine = {
-                id: `tof_${instance.id}_formwork`,
-                sourceElementId: instance.id,
-                trade: 'Formwork',
-                resourceKey: 'formwork-footing',
-                quantity: roundArea(footingFormworkResult.area, settings.rounding.formwork || 2),
-                unit: 'm²',
-                formulaText: footingFormworkResult.formulaText,
-                inputsSnapshot: footingFormworkResult.inputs,
-                assumptions: [
-                  'All 4 vertical sides (bottom in contact with soil)',
-                ],
-                tags: [
-                  `type:foundation`,
-                  `subtype:footing`,
-                  `template:${template.name}`,
-                  `level:${level.label}`,
-                  ...(instance.tags || []),
-                ],
-                calculatedAt: new Date(),
-              };
+              // Footing formwork (all 4 sides) - only if required
+              if (template.requiresFormwork !== false) {
+                const footingFormworkResult = calculateFootingFormwork(length, width, depth);
+                
+                const footingFormworkLine: TakeoffLine = {
+                  id: `tof_${instance.id}_formwork`,
+                  sourceElementId: instance.id,
+                  resourceKey: 'formwork-footing',
+                  quantity: roundArea(footingFormworkResult.area, settings.rounding.formwork || 2),
+                  unit: 'm²',
+                  formulaText: footingFormworkResult.formulaText,
+                  inputsSnapshot: footingFormworkResult.inputs,
+                  assumptions: [
+                    'All 4 vertical sides (bottom in contact with soil)',
+                  ],
+                  tags: [
+                    `dpwh:903 (2)`,
+                    `part:PART D`,
+                    `category:Formwork and Falseworks`,
+                    `type:foundation`,
+                    `subtype:footing`,
+                    `template:${template.name}`,
+                    `level:${level.label}`,
+                    ...(gridLocation ? [`grid:${gridLocation}`] : []),
+                    ...(instance.tags || []),
+                  ],
+                  calculatedAt: new Date(),
+                };
 
-              takeoffLines.push(footingFormworkLine);
+                takeoffLines.push(footingFormworkLine);
+              }
             }
           }
         }
@@ -971,9 +1067,9 @@ export async function POST(
     }
 
     // Calculate summary
-    const concreteLines = takeoffLines.filter(line => line.trade === 'Concrete');
-    const rebarLines = takeoffLines.filter(line => line.trade === 'Rebar');
-    const formworkLines = takeoffLines.filter(line => line.trade === 'Formwork');
+    const concreteLines = takeoffLines.filter(line => line.tags.includes('category:Concrete Works'));
+    const rebarLines = takeoffLines.filter(line => line.tags.includes('category:Reinforcing Steel'));
+    const formworkLines = takeoffLines.filter(line => line.tags.includes('category:Formwork and Falseworks'));
     
     const totalConcrete = concreteLines.reduce((sum, line) => sum + line.quantity, 0);
     const totalRebar = rebarLines.reduce((sum, line) => sum + line.quantity, 0);

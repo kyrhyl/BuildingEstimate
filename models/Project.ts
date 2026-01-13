@@ -10,7 +10,7 @@ const defaultSettings: ProjectSettings = {
   },
   waste: {
     concrete: 0.05, // 5%
-    rebar: 0.03, // 3%
+    rebar: 0, // 0% - no waste for rebar
     formwork: 0.02, // 2%
   },
   lap: {
@@ -37,6 +37,7 @@ const ElementTemplateSchema = new Schema<ElementTemplate>({
   name: { type: String, required: true },
   properties: { type: Map, of: Number, required: true },
   dpwhItemNumber: String,
+  requiresFormwork: { type: Boolean, default: true, required: false },
   rebarConfig: {
     mainBars: {
       count: Number,
@@ -47,13 +48,17 @@ const ElementTemplateSchema = new Schema<ElementTemplate>({
       diameter: Number,
       spacing: Number,
     },
+    webBars: {
+      count: Number,
+      diameter: Number,
+    },
     secondaryBars: {
       diameter: Number,
       spacing: Number,
     },
     dpwhRebarItem: String,
   },
-});
+}, { _id: false, minimize: false });
 
 const ElementInstanceSchema = new Schema<ElementInstance>({
   id: { type: String, required: true },

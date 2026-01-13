@@ -9,7 +9,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import type { ProjectModel, TakeoffLine, ScheduleItem, Trade } from '@/types';
+import type { ProjectModel, TakeoffLine, ScheduleItem } from '@/types';
 
 export interface ScheduleCalculationResult {
   takeoffLines: TakeoffLine[];
@@ -21,34 +21,34 @@ export interface ScheduleCalculationResult {
 }
 
 /**
- * Map schedule item category to Trade
+ * Map schedule item category to part and category tags
  */
-function mapCategoryToTrade(category: ScheduleItem['category']): Trade {
-  const mapping: Record<ScheduleItem['category'], Trade> = {
+function mapCategoryToTags(category: ScheduleItem['category']): { part: string; category: string } {
+  const mapping: Record<ScheduleItem['category'], { part: string; category: string }> = {
     // Part E - Finishing Works
-    'termite-control': 'Other',
-    'drainage': 'Plumbing',
-    'plumbing': 'Plumbing',
-    'carpentry': 'Carpentry',
-    'hardware': 'Hardware',
-    'doors': 'Doors & Windows',
-    'windows': 'Doors & Windows',
-    'glazing': 'Glass & Glazing',
-    'waterproofing': 'Waterproofing',
-    'cladding': 'Cladding',
-    'insulation': 'Other',
-    'acoustical': 'Other',
-    'other': 'Other',
+    'termite-control': { part: 'PART E', category: 'Finishing Works' },
+    'drainage': { part: 'PART E', category: 'Plumbing Works' },
+    'plumbing': { part: 'PART E', category: 'Plumbing Works' },
+    'carpentry': { part: 'PART E', category: 'Carpentry Works' },
+    'hardware': { part: 'PART E', category: 'Hardware' },
+    'doors': { part: 'PART E', category: 'Doors & Windows' },
+    'windows': { part: 'PART E', category: 'Doors & Windows' },
+    'glazing': { part: 'PART E', category: 'Glass & Glazing' },
+    'waterproofing': { part: 'PART E', category: 'Waterproofing' },
+    'cladding': { part: 'PART E', category: 'Cladding' },
+    'insulation': { part: 'PART E', category: 'Other' },
+    'acoustical': { part: 'PART E', category: 'Other' },
+    'other': { part: 'PART E', category: 'Other' },
     // Part C - Earthworks
-    'earthworks-clearing': 'Earthwork',
-    'earthworks-removal-trees': 'Earthwork',
-    'earthworks-removal-structures': 'Earthwork',
-    'earthworks-excavation': 'Earthwork',
-    'earthworks-structure-excavation': 'Earthwork',
-    'earthworks-embankment': 'Earthwork',
-    'earthworks-site-development': 'Earthwork',
+    'earthworks-clearing': { part: 'PART C', category: 'Earthwork' },
+    'earthworks-removal-trees': { part: 'PART C', category: 'Earthwork' },
+    'earthworks-removal-structures': { part: 'PART C', category: 'Earthwork' },
+    'earthworks-excavation': { part: 'PART C', category: 'Earthwork' },
+    'earthworks-structure-excavation': { part: 'PART C', category: 'Earthwork' },
+    'earthworks-embankment': { part: 'PART C', category: 'Earthwork' },
+    'earthworks-site-development': { part: 'PART C', category: 'Earthwork' },
   };
-  return mapping[category] || 'Other';
+  return mapping[category] || { part: 'PART E', category: 'Other' };
 }
 
 /**
@@ -73,7 +73,7 @@ export async function calculateScheduleItems(
   // Process each schedule item
   for (const item of project.scheduleItems) {
     try {
-      const trade = mapCategoryToTrade(item.category);
+      const { part, category } = mapCategoryToTags(item.category);
 
       // Build formula text
       const formulaText = `Direct quantity from schedule: ${item.qty} ${item.unit}`;
@@ -97,7 +97,6 @@ export async function calculateScheduleItems(
       const takeoffLine: TakeoffLine = {
         id: uuidv4(),
         sourceElementId: item.id,
-        trade,
         resourceKey: `schedule-${item.category}-${item.id}`,
         quantity: item.qty,
         unit: item.unit,
@@ -105,7 +104,9 @@ export async function calculateScheduleItems(
         inputsSnapshot,
         assumptions,
         tags: [
-          `category:${item.category}`,
+          `part:${part}`,
+          `category:${category}`,
+          `scheduleCategory:${item.category}`,
           `dpwh:${item.dpwhItemNumberRaw}`,
           ...item.tags,
         ],

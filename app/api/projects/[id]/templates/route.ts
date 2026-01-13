@@ -20,8 +20,23 @@ export async function GET(
       );
     }
 
+    // Ensure requiresFormwork is explicitly included for all templates
+    const templatesWithFormwork = project.elementTemplates?.map((t: any) => {
+      const obj = t.toObject ? t.toObject() : t;
+      // Convert Map to plain object for properties
+      const properties = obj.properties instanceof Map 
+        ? Object.fromEntries(obj.properties) 
+        : obj.properties;
+      
+      return {
+        ...obj,
+        properties,
+        requiresFormwork: obj.requiresFormwork !== undefined ? obj.requiresFormwork : true,
+      };
+    }) || [];
+
     return NextResponse.json({
-      templates: project.elementTemplates || [],
+      templates: templatesWithFormwork,
     });
   } catch (error) {
     console.error('GET /api/projects/:id/templates error:', error);
@@ -162,7 +177,8 @@ export async function PUT(
             errors.push(`Template ${template.name}: mainBars.diameter must be a positive number`);
           }
         }
-        if (template.rebarConfig.stirrups) {
+        // Stirrups are only for beams and columns, not slabs or foundations
+        if (template.rebarConfig.stirrups && (template.type === 'beam' || template.type === 'column')) {
           if (typeof template.rebarConfig.stirrups.diameter !== 'number' || template.rebarConfig.stirrups.diameter <= 0) {
             errors.push(`Template ${template.name}: stirrups.diameter must be a positive number`);
           }
@@ -194,8 +210,23 @@ export async function PUT(
       );
     }
 
+    // Ensure requiresFormwork is explicitly included for all templates
+    const templatesWithFormwork = project.elementTemplates?.map((t: any) => {
+      const obj = t.toObject ? t.toObject() : t;
+      // Convert Map to plain object for properties
+      const properties = obj.properties instanceof Map 
+        ? Object.fromEntries(obj.properties) 
+        : obj.properties;
+      
+      return {
+        ...obj,
+        properties,
+        requiresFormwork: obj.requiresFormwork !== undefined ? obj.requiresFormwork : true,
+      };
+    }) || [];
+
     return NextResponse.json({
-      templates: project.elementTemplates,
+      templates: templatesWithFormwork,
       message: 'Templates updated successfully',
     });
   } catch (error) {

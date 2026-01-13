@@ -37,18 +37,18 @@ describe('Rebar Calculations', () => {
   
   describe('getDPWHRebarItem', () => {
     test('should return correct DPWH item for Grade 40', () => {
-      expect(getDPWHRebarItem(10)).toBe('902 (1) a1');
-      expect(getDPWHRebarItem(12)).toBe('902 (1) a1');
+      expect(getDPWHRebarItem(10)).toBe('902 (1)a1');
+      expect(getDPWHRebarItem(12)).toBe('902 (1)a1');
     });
     
     test('should return correct DPWH item for Grade 60', () => {
-      expect(getDPWHRebarItem(16)).toBe('902 (1) a2');
-      expect(getDPWHRebarItem(20)).toBe('902 (1) a2');
+      expect(getDPWHRebarItem(16)).toBe('902 (1)a2');
+      expect(getDPWHRebarItem(20)).toBe('902 (1)a2');
     });
     
     test('should return correct DPWH item for epoxy-coated bars', () => {
-      expect(getDPWHRebarItem(16, true)).toBe('902 (2) a2');
-      expect(getDPWHRebarItem(20, true)).toBe('902 (2) a2');
+      expect(getDPWHRebarItem(16, true)).toBe('902 (2)a2');
+      expect(getDPWHRebarItem(20, true)).toBe('902 (2)a2');
     });
   });
   

@@ -81,10 +81,11 @@ describe('Finishing Works - Takeoff Calculations', () => {
       
       expect(result.quantity).toBe(30);
       expect(result.unit).toBe('Square Meter');
-      expect(result.trade).toBe('Finishes');
+      expect(result.tags).toContain('part:PART E');
+      expect(result.tags).toContain('category:Finishing Works');
       expect(result.resourceKey).toBe('floor-finish1');
       expect(result.formulaText).toContain('Floor finish area');
-      expect(result.tags).toContain('category:floor');
+      expect(result.tags).toContain('finishCategory:floor');
       expect(result.tags).toContain('space:space1');
     });
     
@@ -132,7 +133,9 @@ describe('Finishing Works - Takeoff Calculations', () => {
       });
       
       expect(result.quantity).toBe(31.5); // 30 × 1.05
-      expect(result.tags).toContain('category:ceiling');
+      expect(result.tags).toContain('part:PART E');
+      expect(result.tags).toContain('category:Finishing Works');
+      expect(result.tags).toContain('finishCategory:ceiling');
     });
     
     test('should return zero for open-to-below spaces', () => {

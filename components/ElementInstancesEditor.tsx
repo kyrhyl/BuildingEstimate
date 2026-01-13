@@ -248,6 +248,42 @@ export default function ElementInstancesEditor({
       tags,
     };
 
+    // Check for duplicate instances (same template, grid, and level)
+    if (!editingId) {
+      const duplicate = instances.find(inst => {
+        if (inst.templateId !== newInstance.templateId) return false;
+        if (inst.placement.levelId !== newInstance.placement.levelId) return false;
+        
+        // For columns, also check end level
+        if (placementMode === 'column') {
+          const instEndLevel = inst.placement.endLevelId || '';
+          const newEndLevel = newInstance.placement.endLevelId || '';
+          if (instEndLevel !== newEndLevel) return false;
+        }
+        
+        // Check grid reference
+        const instGridRef = inst.placement.gridRef || [];
+        const newGridRef = newInstance.placement.gridRef || [];
+        
+        if (instGridRef.length !== newGridRef.length) return false;
+        if (instGridRef.length === 0 && newGridRef.length === 0) return false; // Allow multiple free placements
+        
+        return instGridRef.every((ref, idx) => ref === newGridRef[idx]);
+      });
+
+      if (duplicate) {
+        const templateName = template.name;
+        const gridLoc = gridRef.length > 0 ? gridRef.join(' @ ') : 'free placement';
+        const levelName = levels.find(l => l.label === selectedLevelId)?.label || selectedLevelId;
+        const endLevelInfo = placementMode === 'column' && columnEndLevelId 
+          ? ` to ${levels.find(l => l.label === columnEndLevelId)?.label || columnEndLevelId}`
+          : '';
+        
+        setError(`Duplicate instance detected: ${templateName} at ${gridLoc}, ${levelName}${endLevelInfo} already exists. Please check existing instances to avoid double counting.`);
+        return;
+      }
+    }
+
     let updatedInstances: ElementInstance[];
     if (editingId) {
       updatedInstances = instances.map(i => i.id === editingId ? newInstance : i);

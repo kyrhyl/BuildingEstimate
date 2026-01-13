@@ -226,7 +226,6 @@ export function calculateFinishingWorks(
       // Create takeoff line
       const takeoffLine: TakeoffLine = {
         id: `wall-finish-${wallAssignment.id}`,
-        trade: 'Finishes',
         quantity: Number(finalQuantity.toFixed(2)),
         unit: finishType.unit,
         formulaText: `${length.toFixed(2)}m (L) × ${height.toFixed(2)}m (H) × ${sidesCount} side${sidesCount > 1 ? 's' : ''} = ${area.toFixed(2)} m²${wastePercent > 0 ? ` × ${wasteFactor.toFixed(2)} (waste)` : ''}`,
@@ -239,11 +238,12 @@ export function calculateFinishingWorks(
         resourceKey: `wall-surface-${wallSurface.id}-finish-${finishType.id}`,
         sourceElementId: wallSurface.id,
         tags: [
+          'part:PART E',
+          'category:Finishing Works',
           `dpwh:${finishType.dpwhItemNumberRaw}`,
-          `category:${finishType.category}`, 
+          `finishCategory:${finishType.category}`, 
           `scope:${wallAssignment.scope}`, 
-          'type:wall-surface',
-          `trade:Finishes`
+          'type:wall-surface'
         ],
         assumptions: [
           `Wall surface: ${wallSurface.name}`,

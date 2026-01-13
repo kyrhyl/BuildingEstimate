@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { DPWHCatalogItem, Trade } from '@/types';
+import type { DPWHCatalogItem } from '@/types';
 
 interface CatalogResponse {
   success: boolean;
-  data: DPWHCatalogItem[];
-  total: number;
-  catalogVersion: string;
+  data: {
+    items: DPWHCatalogItem[];
+    total: number;
+    catalogVersion: string;
+  };
 }
 
 export default function CatalogPage() {
@@ -16,25 +18,12 @@ export default function CatalogPage() {
   const [error, setError] = useState<string | null>(null);
   const [catalogVersion, setCatalogVersion] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
+  const [parts, setParts] = useState<string[]>([]);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTrade, setSelectedTrade] = useState<Trade | 'all'>('all');
+  const [selectedPart, setSelectedPart] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
-
-  const trades: Array<Trade | 'all'> = [
-    'all', 
-    'Concrete', 
-    'Rebar', 
-    'Formwork',
-    'Roofing',
-    'Finishes',
-    'Plumbing',
-    'Carpentry',
-    'Hardware',
-    'Doors & Windows',
-    'Other'
-  ];
 
   useEffect(() => {
     fetchCatalogStats();
@@ -42,14 +31,29 @@ export default function CatalogPage() {
 
   useEffect(() => {
     fetchCatalog();
-  }, [searchQuery, selectedTrade, selectedCategory]);
+  }, [searchQuery, selectedPart, selectedCategory]);
+
+  useEffect(() => {
+    fetchCatalogStats();
+    // Reset category when part changes
+    setSelectedCategory('all');
+  }, [selectedPart]);
 
   const fetchCatalogStats = async () => {
     try {
-      const response = await fetch('/api/catalog', { method: 'POST' });
+      const response = await fetch('/api/catalog', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          part: selectedPart !== 'all' ? selectedPart : undefined,
+        }),
+      });
       const result = await response.json();
-      if (result.success) {
-        setCategories(result.data.categories.sort());
+      if (result.success && result.data) {
+        setCategories(result.data.categories || []);
+        setParts(result.data.parts || []);
       }
     } catch (err) {
       console.error('Failed to fetch catalog stats:', err);
@@ -63,16 +67,16 @@ export default function CatalogPage() {
 
       const params = new URLSearchParams();
       if (searchQuery) params.set('query', searchQuery);
-      if (selectedTrade !== 'all') params.set('trade', selectedTrade);
+      if (selectedPart !== 'all') params.set('part', selectedPart);
       if (selectedCategory !== 'all') params.set('category', selectedCategory);
       params.set('limit', '5000'); // Request all available items
 
       const response = await fetch(`/api/catalog?${params.toString()}`);
       const result: CatalogResponse = await response.json();
 
-      if (result.success) {
-        setItems(result.data);
-        setCatalogVersion(result.catalogVersion);
+      if (result.success && result.data) {
+        setItems(result.data.items);
+        setCatalogVersion(result.data.catalogVersion);
       } else {
         setError('Failed to load catalog');
       }
@@ -111,19 +115,20 @@ export default function CatalogPage() {
               />
             </div>
 
-            {/* Trade Filter */}
+            {/* Part Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Trade
+                Part
               </label>
               <select
-                value={selectedTrade}
-                onChange={(e) => setSelectedTrade(e.target.value as Trade | 'all')}
+                value={selectedPart}
+                onChange={(e) => setSelectedPart(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                {trades.map((trade) => (
-                  <option key={trade} value={trade}>
-                    {trade === 'all' ? 'All Trades' : trade}
+                <option value="all">All Parts</option>
+                {parts.map((part) => (
+                  <option key={part} value={part}>
+                    {part}
                   </option>
                 ))}
               </select>
@@ -185,7 +190,7 @@ export default function CatalogPage() {
                       Unit
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Trade
+                      Part
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Category
@@ -193,8 +198,8 @@ export default function CatalogPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {items.map((item) => (
-                    <tr key={item.itemNumber} className="hover:bg-gray-50">
+                  {items.map((item, index) => (
+                    <tr key={`${item.itemNumber}-${index}`} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="font-mono text-sm font-medium text-gray-900">
                           {item.itemNumber}
@@ -202,15 +207,12 @@ export default function CatalogPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">{item.description}</div>
-                        {item.notes && (
-                          <div className="text-xs text-gray-500 mt-1">{item.notes}</div>
-                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {item.unit}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <TradeBadge trade={item.trade} />
+                        <PartBadge part={item.part} />
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {item.category}
@@ -235,36 +237,22 @@ export default function CatalogPage() {
   );
 }
 
-function TradeBadge({ trade }: { trade: Trade }) {
-  const colors: Record<Trade, string> = {
-    Concrete: 'bg-green-100 text-green-800',
-    Rebar: 'bg-orange-100 text-orange-800',
-    Formwork: 'bg-blue-100 text-blue-800',
-    Earthwork: 'bg-amber-100 text-amber-800',
-    Plumbing: 'bg-cyan-100 text-cyan-800',
-    Carpentry: 'bg-yellow-100 text-yellow-800',
-    Hardware: 'bg-gray-100 text-gray-800',
-    'Doors & Windows': 'bg-indigo-100 text-indigo-800',
-    'Glass & Glazing': 'bg-sky-100 text-sky-800',
-    Roofing: 'bg-red-100 text-red-800',
-    Waterproofing: 'bg-blue-100 text-blue-800',
-    Finishes: 'bg-purple-100 text-purple-800',
-    Painting: 'bg-pink-100 text-pink-800',
-    Masonry: 'bg-stone-100 text-stone-800',
-    'Structural Steel': 'bg-slate-100 text-slate-800',
-    Structural: 'bg-zinc-100 text-zinc-800',
-    Foundation: 'bg-brown-100 text-brown-800',
-    Railing: 'bg-teal-100 text-teal-800',
-    Cladding: 'bg-violet-100 text-violet-800',
-    MEPF: 'bg-fuchsia-100 text-fuchsia-800',
-    'Marine Works': 'bg-emerald-100 text-emerald-800',
-    'General Requirements': 'bg-lime-100 text-lime-800',
-    Other: 'bg-neutral-100 text-neutral-800',
+function PartBadge({ part }: { part: string }) {
+  const colors: Record<string, string> = {
+    'PART A': 'bg-blue-100 text-blue-800',
+    'PART B': 'bg-green-100 text-green-800',
+    'PART C': 'bg-amber-100 text-amber-800',
+    'PART D': 'bg-purple-100 text-purple-800',
+    'PART E': 'bg-cyan-100 text-cyan-800',
+    'PART F': 'bg-red-100 text-red-800',
+    'PART G': 'bg-indigo-100 text-indigo-800',
   };
 
+  const color = colors[part] || 'bg-gray-100 text-gray-800';
+
   return (
-    <span className={`px-2 py-1 rounded text-xs font-medium ${colors[trade]}`}>
-      {trade}
+    <span className={`px-2 py-1 rounded text-xs font-medium ${color}`}>
+      {part}
     </span>
   );
 }

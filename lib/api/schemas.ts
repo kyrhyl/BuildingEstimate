@@ -28,9 +28,44 @@ export const updateProjectSchema = z.object({
 // CATALOG SCHEMAS
 // ===================================
 
+// Valid DPWH trade values (from catalog)
+const VALID_TRADES = [
+  'Access Control', 'Acoustical Ceiling', 'Acoustical Treatment', 'Adobe Finish',
+  'Aluminum Cladding', 'Aluminum Doors', 'Aluminum Windows', 'Asphalt Shingles',
+  'Audio Systems', 'Auxiliary Systems', 'Base Isolation', 'Boiler', 'CCTV Systems',
+  'Carpet Flooring', 'Cement Finish', 'Clay Tiles', 'Clearing and Grubbing',
+  'Concrete Tiles', 'Conduits and Boxes', 'Dampproofing', 'Data and Communications',
+  'Demolition', 'Drainage and Sewerage', 'Dredging', 'Dumbwaiter', 'Embankment',
+  'Excavation', 'FRP Works', 'Fire Alarm System', 'Fire Sprinkler System',
+  'Fireproofing', 'Flood Protection', 'Folding Doors', 'Formwork', 'GFRC Cladding',
+  'General Works', 'Glass and Glazing', 'Granolithic Works', 'Ground Improvement',
+  'Grounding System', 'HVAC', 'Heating', 'Insulation', 'Jalousie Windows',
+  'Landscaping', 'Lean Concrete', 'Light Gauge Metal', 'Lighting', 'Masonry Works',
+  'Medical Gas System', 'Metal Lath', 'Metal Roofing Sheets', 'Metal Structures',
+  'Miscellaneous Electrical', 'Nurse Call System', 'PVC Doors', 'Painting Works',
+  'Pea Gravel Finish', 'Pebble Finish', 'Pest Control', 'Piling Works',
+  'Plaster Finish', 'Polycarbonate Panels', 'Power Distribution', 'Precast',
+  'Project Administration', 'Railings', 'Reclamation', 'Reinforcement', 'Roll-up Doors',
+  'Roof Drainage', 'Seismic Protection', 'Stainless Steel Doors', 'Steel Windows',
+  'Structural Concrete', 'Structure Excavation', 'Stucco Finish', 'Tensile Structures',
+  'Tile Works', 'Vertical Transportation', 'Vinyl Flooring', 'Water Pumping',
+  'Water Supply', 'Waterproofing', 'Wiring and Cables', 'Wood Flooring',
+  'Wooden Doors and Windows'
+] as const;
+
+// Valid DPWH parts
+const VALID_PARTS = [
+  'PART A', 'PART B', 'PART C', 'PART D', 'PART E', 'PART F', 'PART G',
+  'PART H', 'PART I', 'PART J', 'PART K', 'PART L', 'PART M', 'PART N',
+  'PART O', 'PART P', 'PART Q', 'PART R', 'PART S'
+] as const;
+
 export const catalogSearchSchema = z.object({
   query: z.string().optional(),
-  trade: z.enum(['Concrete', 'Rebar', 'Formwork', 'Structural Steel', 'Roofing', 'Finishing', 'Earthwork']).optional(),
+  part: z.string().refine(
+    (val) => !val || VALID_PARTS.includes(val as any),
+    { message: 'Invalid part value' }
+  ).optional(),
   category: z.string().optional(),
   limit: z.string().optional().transform(val => {
     const num = parseInt(val || '1000');

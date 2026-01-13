@@ -102,9 +102,9 @@ export default function DoorsWindowsSchedule({ projectId, category }: DoorsWindo
     const res = await fetch(`/api/catalog?query=${encodeURIComponent(query)}&limit=20`);
     if (res.ok) {
       const data = await res.json();
-      // Filter for doors & windows trade
-      const filtered = (data.results || []).filter((item: CatalogItem) => 
-        item.trade === 'Doors & Windows'
+      // Filter for doors & windows category
+      const filtered = (data.data?.items || data.items || []).filter((item: CatalogItem) => 
+        item.category === 'Doors & Windows'
       );
       setCatalogResults(filtered);
     }

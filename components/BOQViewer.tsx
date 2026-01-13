@@ -57,9 +57,9 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
         const data: CalcRun = await res.json();
         if (data.boqLines && data.boqLines.length > 0) {
           setBoqLines(data.boqLines);
-          const concreteLines = data.boqLines.filter(line => line.tags.some(tag => tag === 'trade:Concrete'));
-          const rebarLines = data.boqLines.filter(line => line.tags.some(tag => tag === 'trade:Rebar'));
-          const formworkLines = data.boqLines.filter(line => line.tags.some(tag => tag === 'trade:Formwork'));
+          const concreteLines = data.boqLines.filter(line => line.tags.some(tag => tag === 'category:Concrete'));
+          const rebarLines = data.boqLines.filter(line => line.tags.some(tag => tag === 'category:Rebar'));
+          const formworkLines = data.boqLines.filter(line => line.tags.some(tag => tag === 'category:Formwork'));
           const totalConcreteQty = concreteLines.reduce((sum, line) => sum + line.quantity, 0);
           const totalRebarQty = rebarLines.reduce((sum, line) => sum + line.quantity, 0);
           const totalFormworkQty = formworkLines.reduce((sum, line) => sum + line.quantity, 0);
@@ -107,6 +107,12 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
       setSummary(data.summary || null);
       setLastCalculated(new Date().toISOString());
       setHasBoq(true);
+      
+      // Update currentRunId from response
+      if (data.runId) {
+        setCurrentRunId(data.runId);
+      }
+      
       if (data.warnings && data.warnings.length > 0) {
         setWarnings(data.warnings);
       }
@@ -129,6 +135,45 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
 
   const getSourceTakeoffLines = (sourceIds: string[]): TakeoffLine[] => {
     return takeoffLines.filter(line => sourceIds.includes(line.id));
+  };
+
+  const exportToJSON = async (format: 'standard' | 'detailed' | 'minimal' = 'standard') => {
+    if (!hasBoq || boqLines.length === 0) {
+      alert('No BOQ data available. Please generate BOQ first.');
+      return;
+    }
+
+    try {
+      // Build URL with optional runId parameter
+      const url = new URL(`/api/projects/${projectId}/boq/export`, window.location.origin);
+      url.searchParams.set('format', format);
+      if (currentRunId) {
+        url.searchParams.set('runId', currentRunId);
+      }
+      
+      const res = await fetch(url.toString());
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to export BOQ');
+      }
+
+      // Get the JSON blob
+      const blob = await res.blob();
+      
+      // Create download link
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `BOQ_${projectId}_${format}_${currentRunId || 'latest'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error('Export error:', err);
+      alert('Failed to export BOQ: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
   };
 
   const exportToPDF = async () => {
@@ -169,25 +214,25 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
 
       const summaryData = Object.entries(summary.trades)
         .filter(([_, qty]) => qty > 0)
-        .map(([trade, qty]) => {
-          // Determine unit and decimals based on trade
+        .map(([category, qty]) => {
+          // Determine unit and decimals based on category
           let unit = 'm³';
           let decimals = 3;
           
-          // Find a sample BOQ line for this trade to get the actual unit
-          const sampleLine = boqLines.find(line => line.tags.some(tag => tag === `trade:${trade}`));
+          // Find a sample BOQ line for this category to get the actual unit
+          const sampleLine = boqLines.find(line => line.tags.some(tag => tag === `category:${category}`));
           if (sampleLine) {
             unit = sampleLine.unit;
             decimals = unit === 'kg' ? 2 : 3;
           }
           
           return [
-            trade === 'Concrete' ? 'Concrete Works' : 
-            trade === 'Rebar' ? 'Reinforcing Steel' :
-            trade === 'Formwork' ? 'Formwork' :
-            trade === 'Roofing' ? 'Roofing Works' :
-            trade === 'Finishes' ? 'Finishing Works' :
-            `${trade} Works`,
+            category === 'Concrete' ? 'Concrete Works' : 
+            category === 'Rebar' ? 'Reinforcing Steel' :
+            category === 'Formwork' ? 'Formwork' :
+            category === 'Roofing' ? 'Roofing Works' :
+            category === 'Finishes' ? 'Finishing Works' :
+            `${category} Works`,
             qty.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }),
             unit
           ];
@@ -213,8 +258,8 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
       const dpwhItemNumber = line.dpwhItemNumberRaw || '';
       
       // Get category from tags or infer from description
-      const tradeTag = line.tags.find(tag => tag.startsWith('trade:'));
-      const category = tradeTag ? tradeTag.replace('trade:', '') : '';
+      const categoryTag = line.tags.find(tag => tag.startsWith('category:'));
+      const category = categoryTag ? categoryTag.replace('category:', '') : '';
       
       // Classify the item
       const classification = classifyDPWHItem(dpwhItemNumber, category);
@@ -447,6 +492,48 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
               </svg>
               Export PDF Report
             </button>
+            
+            {/* JSON Export Dropdown */}
+            <div className="relative group">
+              <button
+                disabled={boqLines.length === 0}
+                className="px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 font-medium flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export JSON
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                <div className="py-1">
+                  <button
+                    onClick={() => exportToJSON('standard')}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <div className="font-medium">Standard Format</div>
+                    <div className="text-xs text-gray-500">Balanced data export</div>
+                  </button>
+                  <button
+                    onClick={() => exportToJSON('detailed')}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <div className="font-medium">Detailed Format</div>
+                    <div className="text-xs text-gray-500">Includes takeoff & traceability</div>
+                  </button>
+                  <button
+                    onClick={() => exportToJSON('minimal')}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <div className="font-medium">Minimal Format</div>
+                    <div className="text-xs text-gray-500">Only essential BOQ items</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <button
               onClick={generateBOQ}
               disabled={loading || takeoffLines.length === 0}
@@ -480,43 +567,6 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
               <li key={idx}>{warning}</li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {/* Summary */}
-      {summary && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-          <h4 className="font-semibold text-green-900 mb-4">BOQ Summary</h4>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div>
-              <div className="text-sm text-blue-700">Total Concrete</div>
-              <div className="text-2xl font-bold text-blue-900">
-                {(summary.trades.Concrete || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-orange-700">Total Rebar</div>
-              <div className="text-2xl font-bold text-orange-900">
-                {(summary.trades.Rebar || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-purple-700">Total Formwork</div>
-              <div className="text-2xl font-bold text-purple-900">
-                {(summary.trades.Formwork || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-green-700">BOQ Lines</div>
-              <div className="text-2xl font-bold text-green-900">{summary.totalLines}</div>
-            </div>
-            <div>
-              <div className="text-sm text-green-700">Trades</div>
-              <div className="text-2xl font-bold text-green-900">
-                {Object.keys(summary.trades).filter(t => summary.trades[t as keyof typeof summary.trades] > 0).length}
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -564,8 +614,8 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
                   const filteredLines = filterType === 'all' ? boqLines : boqLines.filter(line => {
                     const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
                     const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumberRaw || '');
-                    const tradeTag = line.tags.find(tag => tag.startsWith('trade:'));
-                    const category = tradeTag ? tradeTag.replace('trade:', '') : '';
+                    const categoryTag = line.tags.find(tag => tag.startsWith('category:'));
+                    const category = categoryTag ? categoryTag.replace('category:', '') : '';
                     const classification = classifyDPWHItem(dpwhItemNo, category);
                     return classification.part === filterType;
                   });
@@ -576,8 +626,8 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
                   filteredLines.forEach(line => {
                     const dpwhTag = line.tags.find(tag => tag.startsWith('dpwh:'));
                     const dpwhItemNo = dpwhTag ? dpwhTag.replace('dpwh:', '') : (line.dpwhItemNumberRaw || '');
-                    const tradeTag = line.tags.find(tag => tag.startsWith('trade:'));
-                    const category = tradeTag ? tradeTag.replace('trade:', '') : '';
+                    const categoryTag = line.tags.find(tag => tag.startsWith('category:'));
+                    const category = categoryTag ? categoryTag.replace('category:', '') : '';
                     const classification = classifyDPWHItem(dpwhItemNo, category);
                     const part = classification.part;
                     const subcategory = classification.subcategory;
@@ -644,9 +694,9 @@ export default function BOQViewer({ projectId, takeoffLines }: BOQViewerProps) {
                         subcategoryLines.forEach((line) => {
                           const isExpanded = expandedLines.has(line.id);
                           const sourceLines = getSourceTakeoffLines(line.sourceTakeoffLineIds);
-                          const isConcrete = line.tags.some(tag => tag === 'trade:Concrete');
-                          const isRebar = line.tags.some(tag => tag === 'trade:Rebar');
-                          const isFormwork = line.tags.some(tag => tag === 'trade:Formwork');
+                          const isConcrete = line.tags.some(tag => tag === 'category:Concrete');
+                          const isRebar = line.tags.some(tag => tag === 'category:Rebar');
+                          const isFormwork = line.tags.some(tag => tag === 'category:Formwork');
 
                           rows.push(
                             <React.Fragment key={line.id}>
